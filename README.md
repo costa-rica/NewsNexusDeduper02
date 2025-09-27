@@ -39,7 +39,7 @@ This Python micro service assists in the effort to identify duplicate approved a
      ```bash
      python src/main.py content_hash
      ```
-   - **Embedding:** Perform semantic similarity analysis _(not yet implemented)_
+   - **Embedding:** Perform semantic similarity analysis
      ```bash
      python src/main.py embedding
      ```
@@ -124,3 +124,21 @@ NAME_DB=newsnexus09.db
 PATH_TO_PYTHON_VENV=/Users/nick/Documents/_environments/deduper
 PATH_TO_CSV=/Users/nick/Documents/_project_resources/NewsNexus09/utilities/deduper/article_ids.csv
 ```
+
+## Instruction to fix the embeddings_processor.py
+
+The `python main.py embedding` command is running a little slower than I expected. Also, last time we used the
+Refactor the file src/modules/embedding_processor.py to add an embedding cache so that embeddings for each articleId are computed only once and reused across comparisons.
+
+Requirements:
+• Introduce an attribute self.embedding_cache = {} in the EmbeddingProcessor class.
+• Add a helper method \_get_or_compute_embedding(article_id: int, content: str) -> np.ndarray that:
+• Checks if the articleId is in the cache.
+• If not, preprocesses the text, computes the embedding with self.model.encode([text])[0], stores it in the cache, and returns it.
+• Update \_calculate_semantic_similarity() to call \_get_or_compute_embedding() for each article instead of always calling self.model.encode([content1, content2]).
+• Leave other logic (thresholding, database updates, tqdm progress, etc.) unchanged.
+• Keep preprocessing with \_preprocess_text() as it already exists.
+
+The goal: avoid recomputing embeddings for the same articles when they appear in multiple analysis records.
+
+⸻

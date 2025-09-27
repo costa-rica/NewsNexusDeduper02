@@ -21,6 +21,7 @@ from modules.load_processor import LoadProcessor
 from modules.states_processor import StatesProcessor
 from modules.url_check_processor import UrlCheckProcessor
 from modules.content_hash_processor import ContentHashProcessor
+from modules.embedding_processor import EmbeddingProcessor
 from modules.database import DatabaseConnection
 
 
@@ -91,8 +92,8 @@ def main():
             processor = ContentHashProcessor()
             processor.execute()
         elif args.command == 'embedding':
-            print("Embedding command not yet implemented")
-            sys.exit(1)
+            processor = EmbeddingProcessor()
+            processor.execute()
         else:
             print(f"Unknown command: {args.command}")
             sys.exit(1)
