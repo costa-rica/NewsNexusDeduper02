@@ -244,7 +244,8 @@ Article approval workflow tracking.
 
 #### ArticleDuplicateAnalysis
 
-Tracks deduplication comparison outputs between a newly ingested article and an already approved article.
+- tablename: ArticleDuplicateAnalyses
+- description: Tracks deduplication comparison outputs between a newly ingested article and an already approved article.
 
 | Field                | Type    | Constraints                 | Description                                          |
 | -------------------- | ------- | --------------------------- | ---------------------------------------------------- |

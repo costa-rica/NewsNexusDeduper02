@@ -4,6 +4,46 @@
 
 This Python micro service assists in the effort to identify duplicate approved articles in the News Nexus 09 database. The service will use articleIds from a csv file to analyze with approved articles in the database's ArticleApproved table. The service will look at data in the Articles, ArticlesApproveds, ArticleStateContracts tables.
 
+## How to run
+
+1. **Activate virtual environment:**
+
+   ```bash
+   source /Users/nick/Documents/_environments/deduper/bin/activate
+   ```
+
+2. **Install dependencies:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Run commands:**
+   - **Load:** Populate article combinations and same ID flags
+     ```bash
+     python src/main.py load
+     ```
+   - **Clear Table:** Delete all rows from ArticleDuplicateAnalyses table
+     ```bash
+     python src/main.py clear_table
+     ```
+   - **States:** Populate state information and matching flags _(not yet implemented)_
+     ```bash
+     python src/main.py states
+     ```
+   - **URL Check:** Perform URL canonicalization and matching _(not yet implemented)_
+     ```bash
+     python src/main.py url_check
+     ```
+   - **Content Hash:** Generate content hashes for similarity detection _(not yet implemented)_
+     ```bash
+     python src/main.py content_hash
+     ```
+   - **Embedding:** Perform semantic similarity analysis _(not yet implemented)_
+     ```bash
+     python src/main.py embedding
+     ```
+
 ## .env
 
 ```
@@ -18,15 +58,15 @@ PATH_TO_CSV=/Users/nick/Documents/_project_resources/NewsNexus09/utilities/dedup
 - [Overview of News Nexus 09](docs/NEWS_NEXUS_09.md)
 - [Database schema and relationships](docs/DATABASE_OVERVIEW.md)
 
-## Prompt for Claude
+## Instructions for Claude
 
-I would like us to build a micro service called the NewsNexusDeduper02. It will be a Python project. The goal of this project is to determine if a new article that has been approved is a duplicate of an existing article. A duplicate consists of either the article being exactly the same or if the event taken place in the article is the same as another article.
+I would like us to build a micro service called the NewsNexusDeduper02. It will be a Python project. The goal of this project is to determine if a new article that has been approved is a duplicate of an existing article. A duplicate consists of either the article being exactly the same or if the event taken place in the article is the same as another article. This should be all free sources.
 
-The News Nexus 09 database has an ArticleApproveds table which is currently at around 3,000 articles. I would like this version of the NewsNexusDeduper, let’s call it NewsNexusDeduper02 to use a csv file of articleIds, which correspond to the ids of rows in the Articles table will then be used to compare each article in the ArticleApproveds table.
+The News Nexus 09 database has an ArticleApproveds table which is currently at around 3,000 articles. I would like this version of the NewsNexusDeduper, let’s call it NewsNexusDeduper02 to use a csv file of articleIds, which correspond to the ids of rows in the Articles table will then be used to compare each article in the ArticleApproveds table. So if there are 10 articles in the csv file, then each of the 10 articles will be compared against each of the 3,000 articles creating 30,000 rows in the ArticleDuplicateAnalyses table.
 
 The important caveat to note while the Articles table will be the index that is used to keep track of articles. The content in the ArticleApproveds table will be what is used to compare between the articles for duplicates. Except the urls, that will come from the Articles table, but the dates, title, state, and content will all come from the ArticleApproveds table.
 
-The NewsNexusDeduper will populate the ArticleDuplicateAnalysis table
+The NewsNexusDeduper will populate the ArticleDuplicateAnalyses table
 
 ```
 | Field                | Type    | Constraints                 | Description                                          |
