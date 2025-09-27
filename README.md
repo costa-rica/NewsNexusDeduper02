@@ -27,15 +27,15 @@ This Python micro service assists in the effort to identify duplicate approved a
      ```bash
      python src/main.py clear_table
      ```
-   - **States:** Populate state information and matching flags _(not yet implemented)_
+   - **States:** Populate state information and matching flags
      ```bash
      python src/main.py states
      ```
-   - **URL Check:** Perform URL canonicalization and matching _(not yet implemented)_
+   - **URL Check:** Perform URL canonicalization and matching
      ```bash
      python src/main.py url_check
      ```
-   - **Content Hash:** Generate content hashes for similarity detection _(not yet implemented)_
+   - **Content Hash:** Generate content hashes for similarity detection
      ```bash
      python src/main.py content_hash
      ```

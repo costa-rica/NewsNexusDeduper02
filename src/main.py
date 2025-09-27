@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from modules.load_processor import LoadProcessor
 from modules.states_processor import StatesProcessor
 from modules.url_check_processor import UrlCheckProcessor
+from modules.content_hash_processor import ContentHashProcessor
 from modules.database import DatabaseConnection
 
 
@@ -87,8 +88,8 @@ def main():
             processor = UrlCheckProcessor()
             processor.execute()
         elif args.command == 'content_hash':
-            print("Content hash command not yet implemented")
-            sys.exit(1)
+            processor = ContentHashProcessor()
+            processor.execute()
         elif args.command == 'embedding':
             print("Embedding command not yet implemented")
             sys.exit(1)

@@ -271,6 +271,64 @@ class DatabaseConnection:
 
         return stats
 
+    def get_analysis_records_for_content_hash_update(self) -> List[Dict[str, Any]]:
+        """Get analysis records that need content hash information updated."""
+        query = """
+        SELECT id, articleIdNew, articleIdApproved
+        FROM ArticleDuplicateAnalyses
+        WHERE contentHash = 0
+        """
+        return self.execute_query(query)
+
+    def get_article_content(self, article_id: int) -> Optional[str]:
+        """Get content for an article from ArticleApproveds table."""
+        query = """
+        SELECT textForPdfReport
+        FROM ArticleApproveds
+        WHERE articleId = ? AND isApproved = 1
+        LIMIT 1
+        """
+        rows = self.execute_query(query, (article_id,))
+        return rows[0]['textForPdfReport'] if rows else None
+
+    def update_analysis_content_hash_batch(self, updates: List[Dict[str, Any]]) -> int:
+        """Update analysis records with content hash results."""
+        if not updates:
+            return 0
+
+        query = """
+        UPDATE ArticleDuplicateAnalyses
+        SET contentHash = ?, updatedAt = datetime('now')
+        WHERE id = ?
+        """
+
+        params_list = [
+            (
+                update['contentHash'],
+                update['id']
+            )
+            for update in updates
+        ]
+
+        return self.execute_many(query, params_list)
+
+    def get_content_hash_processing_stats(self) -> Dict[str, int]:
+        """Get statistics about content hash processing."""
+        queries = {
+            'content_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash = 1",
+            'content_no_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash = 0"
+        }
+
+        stats = {}
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        for key, query in queries.items():
+            cursor.execute(query)
+            stats[key] = cursor.fetchone()[0]
+
+        return stats
+
     def __enter__(self):
         """Context manager entry."""
         return self
