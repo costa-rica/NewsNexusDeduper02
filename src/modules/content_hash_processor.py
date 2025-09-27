@@ -264,15 +264,16 @@ class ContentHashProcessor:
 
     def _compare_content_with_details(self, headline_new: Optional[str], text_new: Optional[str],
                                     headline_approved: Optional[str], text_approved: Optional[str],
-                                    article_id_new: int, article_id_approved: int) -> int:
+                                    article_id_new: int, article_id_approved: int) -> float:
         """
         Compare content using the optimized approach with caching and single normalization.
+        Returns continuous similarity score from 0.0 to 1.0.
         """
         # Handle None cases
         if (headline_new is None and text_new is None) and (headline_approved is None and text_approved is None):
-            return 1  # Both empty = exact match
+            return 1.0  # Both empty = exact match
         if (headline_new is None and text_new is None) or (headline_approved is None and text_approved is None):
-            return 0  # One empty = no match
+            return 0.0  # One empty = no match
 
         # Get or compute normalized content with caching
         if article_id_new in self.norm_cache:
@@ -292,24 +293,20 @@ class ContentHashProcessor:
         hash2 = self._sha1_from_normalized(norm2)
 
         if hash1 == hash2 and hash1:  # Exact match
-            return 1
+            return 1.0
 
         # Check for near-duplicate using SimHash
         simhash1 = self._simhash_from_normalized(norm1)
         simhash2 = self._simhash_from_normalized(norm2)
 
         if simhash1 == 0 and simhash2 == 0:  # Both empty after normalization
-            return 0
+            return 0.0
 
         # Calculate similarity based on Hamming distance
         distance = self._hamming_distance(simhash1, simhash2)
         similarity = self._calculate_similarity(distance)
 
-        # Consider high similarity (>0.85) as potential duplicate
-        if similarity > 0.85:
-            return 1  # High similarity = likely duplicate
-        else:
-            return 0  # Low similarity = likely not duplicate
+        return similarity  # Return continuous similarity score (0.0 to 1.0)
 
     def _update_batch(self, batch_updates: List[Dict[str, Any]]):
         """Update a batch of analysis records with content hash results."""
@@ -327,8 +324,11 @@ class ContentHashProcessor:
                 print("CONTENT HASH PROCESS SUMMARY")
                 print("="*50)
                 print(f"Records processed: {processed_count:,}")
-                print(f"Content matches found: {stats.get('content_match_count', 0):,}")
-                print(f"Content non-matches: {stats.get('content_no_match_count', 0):,}")
+                print(f"Exact matches (1.0): {stats.get('exact_match_count', 0):,}")
+                print(f"High similarity (0.85-0.99): {stats.get('high_similarity_count', 0):,}")
+                print(f"Medium similarity (0.5-0.84): {stats.get('medium_similarity_count', 0):,}")
+                print(f"Low similarity (0.01-0.49): {stats.get('low_similarity_count', 0):,}")
+                print(f"No similarity (0.0): {stats.get('no_match_count', 0):,}")
                 print("\nNext steps:")
                 print("- Run 'python main.py embedding' to perform semantic analysis")
                 print("="*50)

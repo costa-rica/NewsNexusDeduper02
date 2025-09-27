@@ -311,7 +311,7 @@ class DatabaseConnection:
         return rows[0]['textForPdfReport'] if rows else None
 
     def update_analysis_content_hash_batch(self, updates: List[Dict[str, Any]]) -> int:
-        """Update analysis records with content hash results."""
+        """Update analysis records with content hash results (float values 0.0-1.0)."""
         if not updates:
             return 0
 
@@ -323,7 +323,7 @@ class DatabaseConnection:
 
         params_list = [
             (
-                update['contentHash'],
+                float(update['contentHash']),  # Ensure float type
                 update['id']
             )
             for update in updates
@@ -332,10 +332,14 @@ class DatabaseConnection:
         return self.execute_many(query, params_list)
 
     def get_content_hash_processing_stats(self) -> Dict[str, int]:
-        """Get statistics about content hash processing."""
+        """Get statistics about content hash processing with continuous similarity scores."""
         queries = {
-            'content_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash = 1",
-            'content_no_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash = 0"
+            'exact_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash = 1.0",
+            'high_similarity_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash >= 0.85 AND contentHash < 1.0",
+            'medium_similarity_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash >= 0.5 AND contentHash < 0.85",
+            'low_similarity_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash > 0.0 AND contentHash < 0.5",
+            'no_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash = 0.0",
+            'processed_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE contentHash > 0"
         }
 
         stats = {}
