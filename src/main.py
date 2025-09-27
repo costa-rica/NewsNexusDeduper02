@@ -18,6 +18,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from modules.load_processor import LoadProcessor
+from modules.states_processor import StatesProcessor
+from modules.url_check_processor import UrlCheckProcessor
 from modules.database import DatabaseConnection
 
 
@@ -79,11 +81,11 @@ def main():
         elif args.command == 'clear_table':
             clear_table()
         elif args.command == 'states':
-            print("States command not yet implemented")
-            sys.exit(1)
+            processor = StatesProcessor()
+            processor.execute()
         elif args.command == 'url_check':
-            print("URL check command not yet implemented")
-            sys.exit(1)
+            processor = UrlCheckProcessor()
+            processor.execute()
         elif args.command == 'content_hash':
             print("Content hash command not yet implemented")
             sys.exit(1)

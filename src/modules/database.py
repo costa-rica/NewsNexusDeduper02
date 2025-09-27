@@ -151,6 +151,126 @@ class DatabaseConnection:
 
         return row_count
 
+    def get_analysis_records_for_state_update(self) -> List[Dict[str, Any]]:
+        """Get analysis records that need state information updated."""
+        query = """
+        SELECT id, articleIdNew, articleIdApproved
+        FROM ArticleDuplicateAnalyses
+        WHERE articleNewState = '' OR articleApprovedState = '' OR sameStateFlag = 0
+        """
+        return self.execute_query(query)
+
+    def get_article_state(self, article_id: int) -> Optional[str]:
+        """Get state abbreviation for an article via ArticleStateContract."""
+        query = """
+        SELECT s.abbreviation
+        FROM Articles a
+        JOIN ArticleStateContracts asc ON a.id = asc.articleId
+        JOIN States s ON asc.stateId = s.id
+        WHERE a.id = ?
+        LIMIT 1
+        """
+        rows = self.execute_query(query, (article_id,))
+        return rows[0]['abbreviation'] if rows else None
+
+    def update_analysis_states_batch(self, updates: List[Dict[str, Any]]) -> int:
+        """Update analysis records with state information."""
+        if not updates:
+            return 0
+
+        query = """
+        UPDATE ArticleDuplicateAnalyses
+        SET articleNewState = ?, articleApprovedState = ?, sameStateFlag = ?, updatedAt = datetime('now')
+        WHERE id = ?
+        """
+
+        params_list = [
+            (
+                update['articleNewState'],
+                update['articleApprovedState'],
+                update['sameStateFlag'],
+                update['id']
+            )
+            for update in updates
+        ]
+
+        return self.execute_many(query, params_list)
+
+    def get_state_processing_stats(self) -> Dict[str, int]:
+        """Get statistics about state processing."""
+        queries = {
+            'same_state_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE sameStateFlag = 1 AND articleNewState != ''",
+            'different_state_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE sameStateFlag = 0 AND articleNewState != '' AND articleApprovedState != ''",
+            'missing_state_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE articleNewState = '' OR articleApprovedState = ''"
+        }
+
+        stats = {}
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        for key, query in queries.items():
+            cursor.execute(query)
+            stats[key] = cursor.fetchone()[0]
+
+        return stats
+
+    def get_analysis_records_for_url_update(self) -> List[Dict[str, Any]]:
+        """Get analysis records that need URL check information updated."""
+        query = """
+        SELECT id, articleIdNew, articleIdApproved
+        FROM ArticleDuplicateAnalyses
+        WHERE urlCheck = 0
+        """
+        return self.execute_query(query)
+
+    def get_article_url(self, article_id: int) -> Optional[str]:
+        """Get URL for an article."""
+        query = """
+        SELECT url
+        FROM Articles
+        WHERE id = ?
+        """
+        rows = self.execute_query(query, (article_id,))
+        return rows[0]['url'] if rows else None
+
+    def update_analysis_url_check_batch(self, updates: List[Dict[str, Any]]) -> int:
+        """Update analysis records with URL check results."""
+        if not updates:
+            return 0
+
+        query = """
+        UPDATE ArticleDuplicateAnalyses
+        SET urlCheck = ?, updatedAt = datetime('now')
+        WHERE id = ?
+        """
+
+        params_list = [
+            (
+                update['urlCheck'],
+                update['id']
+            )
+            for update in updates
+        ]
+
+        return self.execute_many(query, params_list)
+
+    def get_url_check_processing_stats(self) -> Dict[str, int]:
+        """Get statistics about URL check processing."""
+        queries = {
+            'url_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE urlCheck = 1",
+            'url_no_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE urlCheck = 0"
+        }
+
+        stats = {}
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        for key, query in queries.items():
+            cursor.execute(query)
+            stats[key] = cursor.fetchone()[0]
+
+        return stats
+
     def __enter__(self):
         """Context manager entry."""
         return self
