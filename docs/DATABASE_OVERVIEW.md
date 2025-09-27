@@ -274,8 +274,8 @@ Tracks deduplication comparison outputs between a newly ingested article and an 
 | articleApprovedState | STRING  | NOT NULL                    | State associated with the approved article           |
 | sameStateFlag        | INTEGER | NOT NULL                    | 1 if states match; 0 otherwise                       |
 | urlCheck             | INTEGER | NOT NULL                    | URL match check result (e.g., 1 match / 0 no match)  |
-| contentHash          | INTEGER | NOT NULL                    | Hash comparison result indicator for article content |
-| embeddingSearch      | INTEGER | NOT NULL                    | Embedding similarity result indicator                |
+| contentHash          | FLOAT   | NOT NULL                    | Hash comparison result indicator for article content |
+| embeddingSearch      | FLOAT   | NOT NULL                    | Embedding similarity result indicator                |
 | createdAt            | DATE    | NOT NULL                    | Timestamp                                            |
 | updatedAt            | DATE    | NOT NULL                    | Timestamp                                            |
 
