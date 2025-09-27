@@ -11,6 +11,11 @@ from tqdm import tqdm
 
 from .database import DatabaseConnection
 
+# Precompiled regexes for performance
+HTML_TAG_REGEX = re.compile(r'<[^>]+>')
+NON_WORD_SPACE_REGEX = re.compile(r'[^\w\s]')
+WHITESPACE_REGEX = re.compile(r'\s+')
+
 
 class ContentHashProcessor:
     """Processes the content_hash command: generate content hashes for similarity detection."""
@@ -18,6 +23,7 @@ class ContentHashProcessor:
     def __init__(self):
         """Initialize the content hash processor."""
         self.db = DatabaseConnection()
+        self.norm_cache: Dict[int, str] = {}  # Cache for normalized content by articleId
 
     def execute(self):
         """
@@ -28,50 +34,53 @@ class ContentHashProcessor:
 
         try:
             with self.db:
-                # Get all analysis records that need content hash checking
-                print("Getting analysis records to update...")
-                analysis_records = self.db.get_analysis_records_for_content_hash_update()
+                # Get total count for progress tracking
+                print("Getting total count of records to update...")
+                count_records = self.db.get_analysis_records_for_content_hash_update()
+                total_records = len(count_records)
 
-                if not analysis_records:
+                if total_records == 0:
                     print("No analysis records found to update")
                     return
 
-                print(f"Found {len(analysis_records):,} analysis records to update")
+                print(f"Found {total_records:,} analysis records to update")
 
-                # Process records in batches
-                batch_size = 500  # Smaller batches for content processing
+                # Process records in batches using bulk query
+                batch_size = 1000  # Increased batch size for better performance
                 batch_updates = []
                 processed_count = 0
 
                 print("Processing content hash comparisons...")
-                with tqdm(total=len(analysis_records), desc="Processing content", unit="records") as pbar:
-                    for record in analysis_records:
-                        # Get content for both articles
-                        new_article_content = self.db.get_article_content(record['articleIdNew'])
-                        approved_article_content = self.db.get_article_content(record['articleIdApproved'])
+                with tqdm(total=total_records, desc="Processing content", unit="records") as pbar:
+                    while processed_count < total_records:
+                        # Get batch of records with content included
+                        records_batch = self.db.get_analysis_records_for_content_hash_update_with_contents(batch_size)
 
-                        # Perform content comparison
-                        content_similarity = self._compare_content(new_article_content, approved_article_content)
+                        if not records_batch:
+                            break
 
-                        # Create update record
-                        update_record = {
-                            'id': record['id'],
-                            'contentHash': content_similarity
-                        }
+                        for record in records_batch:
+                            # Perform content comparison using already-loaded content
+                            content_similarity = self._compare_content_with_details(
+                                record['headlineNew'], record['textNew'],
+                                record['headlineApproved'], record['textApproved'],
+                                record['articleIdNew'], record['articleIdApproved']
+                            )
 
-                        batch_updates.append(update_record)
-                        processed_count += 1
+                            # Create update record
+                            update_record = {
+                                'id': record['id'],
+                                'contentHash': content_similarity
+                            }
 
-                        # Process batch when it reaches batch_size
-                        if len(batch_updates) >= batch_size:
+                            batch_updates.append(update_record)
+                            processed_count += 1
+
+                        # Update batch
+                        if batch_updates:
                             self._update_batch(batch_updates)
                             pbar.update(len(batch_updates))
                             batch_updates = []
-
-                    # Process remaining updates
-                    if batch_updates:
-                        self._update_batch(batch_updates)
-                        pbar.update(len(batch_updates))
 
                 print(f"Successfully processed {processed_count:,} records")
                 self._print_summary(processed_count)
@@ -94,12 +103,12 @@ class ContentHashProcessor:
         # Convert to lowercase
         text = text.lower()
 
-        # Remove HTML tags if present
-        text = re.sub(r'<[^>]+>', ' ', text)
+        # Remove HTML tags if present (using precompiled regex)
+        text = HTML_TAG_REGEX.sub(' ', text)
 
-        # Remove special characters and extra whitespace
-        text = re.sub(r'[^\w\s]', ' ', text)
-        text = re.sub(r'\s+', ' ', text)
+        # Remove special characters and extra whitespace (using precompiled regexes)
+        text = NON_WORD_SPACE_REGEX.sub(' ', text)
+        text = WHITESPACE_REGEX.sub(' ', text)
 
         # Remove common stop words for better similarity detection
         stop_words = {
@@ -110,6 +119,58 @@ class ContentHashProcessor:
 
         words = [word for word in text.split() if word not in stop_words and len(word) > 2]
         return ' '.join(words)
+
+    def _prep_content(self, headline: Optional[str], text: Optional[str]) -> str:
+        """
+        Prepare content by normalizing and concatenating headline and text.
+        Returns normalized string in format: "{norm(headline)}|||{norm(text)}"
+        """
+        norm_headline = self._normalize_text(headline) if headline else ""
+        norm_text = self._normalize_text(text) if text else ""
+        return f"{norm_headline}|||{norm_text}"
+
+    def _sha1_from_normalized(self, normalized_content: str) -> str:
+        """Generate SHA-1 hash from already normalized content."""
+        if not normalized_content:
+            return ""
+        return hashlib.sha1(normalized_content.encode('utf-8')).hexdigest()
+
+    def _simhash_from_normalized(self, normalized_content: str, hash_bits: int = 64) -> int:
+        """
+        Generate SimHash from already normalized content.
+        Simple implementation without external dependencies.
+        """
+        if not normalized_content:
+            return 0
+
+        # Get words from already normalized content
+        words = normalized_content.split()
+
+        if not words:
+            return 0
+
+        # Initialize bit vector
+        bit_vector = [0] * hash_bits
+
+        # Process each word
+        for word in words:
+            # Simple hash function for the word
+            word_hash = hash(word) % (2 ** hash_bits)
+
+            # Update bit vector based on word hash
+            for i in range(hash_bits):
+                if word_hash & (1 << i):
+                    bit_vector[i] += 1
+                else:
+                    bit_vector[i] -= 1
+
+        # Generate final hash
+        simhash = 0
+        for i in range(hash_bits):
+            if bit_vector[i] > 0:
+                simhash |= (1 << i)
+
+        return simhash
 
     def _generate_sha1_hash(self, text: str) -> str:
         """Generate SHA-1 hash for exact content matching."""
@@ -195,6 +256,55 @@ class ContentHashProcessor:
         similarity = self._calculate_similarity(distance)
 
         # Scale to 0-100 and round to integer
+        # Consider high similarity (>0.85) as potential duplicate
+        if similarity > 0.85:
+            return 1  # High similarity = likely duplicate
+        else:
+            return 0  # Low similarity = likely not duplicate
+
+    def _compare_content_with_details(self, headline_new: Optional[str], text_new: Optional[str],
+                                    headline_approved: Optional[str], text_approved: Optional[str],
+                                    article_id_new: int, article_id_approved: int) -> int:
+        """
+        Compare content using the optimized approach with caching and single normalization.
+        """
+        # Handle None cases
+        if (headline_new is None and text_new is None) and (headline_approved is None and text_approved is None):
+            return 1  # Both empty = exact match
+        if (headline_new is None and text_new is None) or (headline_approved is None and text_approved is None):
+            return 0  # One empty = no match
+
+        # Get or compute normalized content with caching
+        if article_id_new in self.norm_cache:
+            norm1 = self.norm_cache[article_id_new]
+        else:
+            norm1 = self._prep_content(headline_new, text_new)
+            self.norm_cache[article_id_new] = norm1
+
+        if article_id_approved in self.norm_cache:
+            norm2 = self.norm_cache[article_id_approved]
+        else:
+            norm2 = self._prep_content(headline_approved, text_approved)
+            self.norm_cache[article_id_approved] = norm2
+
+        # Check for exact match using SHA-1
+        hash1 = self._sha1_from_normalized(norm1)
+        hash2 = self._sha1_from_normalized(norm2)
+
+        if hash1 == hash2 and hash1:  # Exact match
+            return 1
+
+        # Check for near-duplicate using SimHash
+        simhash1 = self._simhash_from_normalized(norm1)
+        simhash2 = self._simhash_from_normalized(norm2)
+
+        if simhash1 == 0 and simhash2 == 0:  # Both empty after normalization
+            return 0
+
+        # Calculate similarity based on Hamming distance
+        distance = self._hamming_distance(simhash1, simhash2)
+        similarity = self._calculate_similarity(distance)
+
         # Consider high similarity (>0.85) as potential duplicate
         if similarity > 0.85:
             return 1  # High similarity = likely duplicate

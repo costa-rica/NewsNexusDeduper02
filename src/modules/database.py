@@ -280,6 +280,25 @@ class DatabaseConnection:
         """
         return self.execute_query(query)
 
+    def get_analysis_records_for_content_hash_update_with_contents(self, limit: int) -> List[Dict[str, Any]]:
+        """Get analysis records with content for bulk content hash processing."""
+        query = """
+        SELECT
+            adr.id,
+            adr.articleIdNew,
+            adr.articleIdApproved,
+            aa1.headlineForPdfReport AS headlineNew,
+            aa1.textForPdfReport AS textNew,
+            aa2.headlineForPdfReport AS headlineApproved,
+            aa2.textForPdfReport AS textApproved
+        FROM ArticleDuplicateAnalyses adr
+        JOIN ArticleApproveds aa1 ON aa1.articleId = adr.articleIdNew
+        JOIN ArticleApproveds aa2 ON aa2.articleId = adr.articleIdApproved
+        WHERE adr.contentHash = 0
+        LIMIT ?
+        """
+        return self.execute_query(query, (limit,))
+
     def get_article_content(self, article_id: int) -> Optional[str]:
         """Get content for an article from ArticleApproveds table."""
         query = """
