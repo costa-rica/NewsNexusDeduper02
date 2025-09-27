@@ -339,7 +339,7 @@ class DatabaseConnection:
         return self.execute_query(query)
 
     def update_analysis_embedding_batch(self, updates: List[Dict[str, Any]]) -> int:
-        """Update analysis records with embedding similarity results."""
+        """Update analysis records with embedding similarity results (float values)."""
         if not updates:
             return 0
 
@@ -351,7 +351,7 @@ class DatabaseConnection:
 
         params_list = [
             (
-                update['embeddingSearch'],
+                float(update['embeddingSearch']),  # Ensure float type
                 update['id']
             )
             for update in updates
@@ -362,8 +362,10 @@ class DatabaseConnection:
     def get_embedding_processing_stats(self) -> Dict[str, int]:
         """Get statistics about embedding processing."""
         queries = {
-            'embedding_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE embeddingSearch = 1",
-            'embedding_no_match_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE embeddingSearch = 0"
+            'high_similarity_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE embeddingSearch > 0.8",
+            'medium_similarity_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE embeddingSearch BETWEEN 0.5 AND 0.8",
+            'low_similarity_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE embeddingSearch < 0.5 AND embeddingSearch > 0",
+            'processed_count': "SELECT COUNT(*) FROM ArticleDuplicateAnalyses WHERE embeddingSearch > 0"
         }
 
         stats = {}

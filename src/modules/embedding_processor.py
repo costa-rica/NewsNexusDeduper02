@@ -25,6 +25,7 @@ class EmbeddingProcessor:
         """Initialize the embedding processor."""
         self.db = DatabaseConnection()
         self.model = None
+        self.embedding_cache: Dict[int, np.ndarray] = {}
 
         if not SENTENCE_TRANSFORMERS_AVAILABLE:
             raise ImportError(
@@ -35,8 +36,9 @@ class EmbeddingProcessor:
     def _load_model(self):
         """Load the sentence transformer model."""
         if self.model is None:
-            print("Loading all-MiniLM-L6-v2 model...")
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+            print("Loading sentence-transformers/all-MiniLM-L6-v2 model...")
+            self.model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+            self.model.max_seq_length = 256
             print("Model loaded successfully")
 
     def execute(self):
@@ -75,7 +77,9 @@ class EmbeddingProcessor:
 
                         # Perform semantic similarity analysis
                         similarity_score = self._calculate_semantic_similarity(
+                            record['articleIdNew'],
                             new_article_content,
+                            record['articleIdApproved'],
                             approved_article_content
                         )
 
@@ -129,61 +133,69 @@ class EmbeddingProcessor:
 
         return text
 
-    def _calculate_semantic_similarity(self, content1: Optional[str], content2: Optional[str]) -> int:
+    def _get_or_compute_embedding(self, article_id: int, raw_text: Optional[str]) -> np.ndarray:
+        """
+        Get cached embedding or compute and cache it for the given article.
+
+        Args:
+            article_id: The article ID for caching
+            raw_text: The raw text content to embed
+
+        Returns:
+            The embedding vector as numpy array
+        """
+        # Check cache first
+        if article_id in self.embedding_cache:
+            return self.embedding_cache[article_id]
+
+        # Preprocess text
+        processed_text = self._preprocess_text(raw_text) if raw_text else ""
+
+        # Handle empty content
+        if not processed_text:
+            # Return zero vector with correct dimensions
+            embedding_dim = self.model.get_sentence_embedding_dimension()
+            zero_embedding = np.zeros(embedding_dim, dtype=np.float32)
+            self.embedding_cache[article_id] = zero_embedding
+            return zero_embedding
+
+        # Compute embedding
+        embedding = self.model.encode(
+            [processed_text],
+            normalize_embeddings=True,
+            convert_to_numpy=True
+        )[0]
+
+        # Cache and return
+        self.embedding_cache[article_id] = embedding
+        return embedding
+
+    def _calculate_semantic_similarity(self, article_id1: int, content1: Optional[str],
+                                     article_id2: int, content2: Optional[str]) -> float:
         """
         Calculate semantic similarity between two pieces of content using embeddings.
-        Returns similarity score as integer (0 or 1 for duplicate detection).
+        Returns cosine similarity score as float (0.0-1.0).
         """
         # Handle None cases
         if content1 is None and content2 is None:
-            return 1  # Both empty = similar
+            return 1.0  # Both empty = perfectly similar
         if content1 is None or content2 is None:
-            return 0  # One empty = not similar
-
-        # Preprocess content
-        processed_content1 = self._preprocess_text(content1)
-        processed_content2 = self._preprocess_text(content2)
-
-        # Handle empty content after preprocessing
-        if not processed_content1 and not processed_content2:
-            return 1  # Both empty after processing = similar
-        if not processed_content1 or not processed_content2:
-            return 0  # One empty after processing = not similar
+            return 0.0  # One empty = not similar
 
         try:
-            # Generate embeddings
-            embeddings = self.model.encode([processed_content1, processed_content2])
-            embedding1 = embeddings[0]
-            embedding2 = embeddings[1]
+            # Get embeddings using cache
+            embedding1 = self._get_or_compute_embedding(article_id1, content1)
+            embedding2 = self._get_or_compute_embedding(article_id2, content2)
 
-            # Calculate cosine similarity
-            cosine_similarity = self._cosine_similarity(embedding1, embedding2)
+            # Calculate cosine similarity (dot product for normalized vectors)
+            cosine_similarity = float(np.dot(embedding1, embedding2))
 
-            # Convert to binary decision based on threshold
-            # Consider high similarity (>0.8) as potential semantic duplicate
-            if cosine_similarity > 0.8:
-                return 1  # High semantic similarity = likely duplicate
-            else:
-                return 0  # Low semantic similarity = likely not duplicate
+            # Ensure result is between 0 and 1
+            return max(0.0, min(1.0, cosine_similarity))
 
         except Exception as e:
             print(f"Error calculating similarity: {e}")
-            return 0  # Default to no similarity on error
-
-    def _cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
-        """Calculate cosine similarity between two vectors."""
-        # Normalize vectors
-        norm1 = np.linalg.norm(vec1)
-        norm2 = np.linalg.norm(vec2)
-
-        if norm1 == 0 or norm2 == 0:
-            return 0.0
-
-        # Calculate cosine similarity
-        similarity = np.dot(vec1, vec2) / (norm1 * norm2)
-
-        # Ensure result is between 0 and 1
-        return max(0.0, min(1.0, float(similarity)))
+            return 0.0  # Default to no similarity on error
 
     def _update_batch(self, batch_updates: List[Dict[str, Any]]):
         """Update a batch of analysis records with embedding results."""
@@ -201,8 +213,11 @@ class EmbeddingProcessor:
                 print("EMBEDDING PROCESS SUMMARY")
                 print("="*50)
                 print(f"Records processed: {processed_count:,}")
-                print(f"Semantic matches found: {stats.get('embedding_match_count', 0):,}")
-                print(f"Semantic non-matches: {stats.get('embedding_no_match_count', 0):,}")
+                print(f"High similarity (>0.8): {stats.get('high_similarity_count', 0):,}")
+                print(f"Medium similarity (0.5-0.8): {stats.get('medium_similarity_count', 0):,}")
+                print(f"Low similarity (<0.5): {stats.get('low_similarity_count', 0):,}")
+                print(f"Total with similarity scores: {stats.get('processed_count', 0):,}")
+                print(f"Unique articles cached: {len(self.embedding_cache):,}")
                 print("\nAll processing steps completed!")
                 print("Use the analysis results to identify potential duplicates.")
                 print("="*50)
