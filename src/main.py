@@ -8,6 +8,8 @@ Commands:
 - url_check: Perform URL canonicalization and matching (step 6)
 - content_hash: Generate content hashes for similarity detection (step 7)
 - embedding: Perform semantic similarity analysis using embeddings (step 8)
+- analyze: Run complete pipeline (load → states → url_check → content_hash → embedding)
+- analyze_fast: Run fast pipeline (load → states → url_check → embedding, skips content_hash)
 """
 
 import sys
@@ -23,6 +25,76 @@ from modules.url_check_processor import UrlCheckProcessor
 from modules.content_hash_processor import ContentHashProcessor
 from modules.embedding_processor import EmbeddingProcessor
 from modules.database import DatabaseConnection
+
+
+def run_analyze():
+    """Run complete analysis pipeline: load, states, url_check, content_hash, embedding."""
+    pipeline_steps = [
+        ("load", "Loading article combinations and same ID flags", LoadProcessor),
+        ("states", "Processing state information and matching flags", StatesProcessor),
+        ("url_check", "Performing URL canonicalization and matching", UrlCheckProcessor),
+        ("content_hash", "Generating content hashes for similarity detection", ContentHashProcessor),
+        ("embedding", "Performing semantic similarity analysis", EmbeddingProcessor)
+    ]
+
+    print("="*60)
+    print("STARTING COMPLETE ANALYSIS PIPELINE")
+    print("="*60)
+    print("Steps: load → states → url_check → content_hash → embedding")
+    print("="*60)
+
+    for step_name, description, processor_class in pipeline_steps:
+        try:
+            print(f"\n🔄 Step {pipeline_steps.index((step_name, description, processor_class)) + 1}/5: {description}...")
+            processor = processor_class()
+            processor.execute()
+            print(f"✅ Step {step_name} completed successfully")
+        except Exception as e:
+            print(f"❌ Error in step {step_name}: {e}")
+            print("Pipeline stopped due to error.")
+            sys.exit(1)
+
+    print("\n" + "="*60)
+    print("🎉 COMPLETE ANALYSIS PIPELINE FINISHED SUCCESSFULLY")
+    print("="*60)
+    print("All steps completed: load, states, url_check, content_hash, embedding")
+    print("Your duplicate analysis is ready for review!")
+    print("="*60)
+
+
+def run_analyze_fast():
+    """Run fast analysis pipeline: load, states, url_check, embedding (skips content_hash)."""
+    pipeline_steps = [
+        ("load", "Loading article combinations and same ID flags", LoadProcessor),
+        ("states", "Processing state information and matching flags", StatesProcessor),
+        ("url_check", "Performing URL canonicalization and matching", UrlCheckProcessor),
+        ("embedding", "Performing semantic similarity analysis", EmbeddingProcessor)
+    ]
+
+    print("="*60)
+    print("STARTING FAST ANALYSIS PIPELINE")
+    print("="*60)
+    print("Steps: load → states → url_check → embedding (skipping content_hash)")
+    print("="*60)
+
+    for step_name, description, processor_class in pipeline_steps:
+        try:
+            print(f"\n🔄 Step {pipeline_steps.index((step_name, description, processor_class)) + 1}/4: {description}...")
+            processor = processor_class()
+            processor.execute()
+            print(f"✅ Step {step_name} completed successfully")
+        except Exception as e:
+            print(f"❌ Error in step {step_name}: {e}")
+            print("Pipeline stopped due to error.")
+            sys.exit(1)
+
+    print("\n" + "="*60)
+    print("🎉 FAST ANALYSIS PIPELINE FINISHED SUCCESSFULLY")
+    print("="*60)
+    print("Completed steps: load, states, url_check, embedding")
+    print("Note: content_hash was skipped for faster processing")
+    print("Run 'python src/main.py content_hash' if you need content similarity analysis")
+    print("="*60)
 
 
 def clear_table():
@@ -70,6 +142,12 @@ def main():
     # Embedding command
     embedding_parser = subparsers.add_parser('embedding', help='Perform semantic similarity analysis')
 
+    # Analyze command (full pipeline)
+    analyze_parser = subparsers.add_parser('analyze', help='Run complete analysis pipeline (load, states, url_check, content_hash, embedding)')
+
+    # Analyze fast command (skip content_hash)
+    analyze_fast_parser = subparsers.add_parser('analyze_fast', help='Run fast analysis pipeline (load, states, url_check, embedding) - skips content_hash')
+
     args = parser.parse_args()
 
     if not args.command:
@@ -94,6 +172,10 @@ def main():
         elif args.command == 'embedding':
             processor = EmbeddingProcessor()
             processor.execute()
+        elif args.command == 'analyze':
+            run_analyze()
+        elif args.command == 'analyze_fast':
+            run_analyze_fast()
         else:
             print(f"Unknown command: {args.command}")
             sys.exit(1)
