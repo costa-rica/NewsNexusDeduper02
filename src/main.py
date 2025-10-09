@@ -97,15 +97,16 @@ def run_analyze_fast():
     print("="*60)
 
 
-def clear_table():
+def clear_table(skip_confirmation=False):
     """Clear all rows from the ArticleDuplicateAnalyses table."""
     print("Clearing ArticleDuplicateAnalyses table...")
 
-    # Ask for confirmation
-    response = input("This will delete ALL rows from ArticleDuplicateAnalyses table. Continue? (y/N): ")
-    if response.lower() != 'y':
-        print("Operation cancelled.")
-        return
+    # Ask for confirmation unless -y flag is used
+    if not skip_confirmation:
+        response = input("This will delete ALL rows from ArticleDuplicateAnalyses table. Continue? (y/N): ")
+        if response.lower() != 'y':
+            print("Operation cancelled.")
+            return
 
     try:
         with DatabaseConnection() as db:
@@ -129,6 +130,7 @@ def main():
 
     # Clear table command
     clear_parser = subparsers.add_parser('clear_table', help='Delete all rows from ArticleDuplicateAnalyses table')
+    clear_parser.add_argument('-y', '--yes', action='store_true', help='Skip confirmation prompt')
 
     # States command
     states_parser = subparsers.add_parser('states', help='Populate state information and matching flags')
@@ -159,7 +161,7 @@ def main():
             processor = LoadProcessor()
             processor.execute()
         elif args.command == 'clear_table':
-            clear_table()
+            clear_table(skip_confirmation=args.yes)
         elif args.command == 'states':
             processor = StatesProcessor()
             processor.execute()
