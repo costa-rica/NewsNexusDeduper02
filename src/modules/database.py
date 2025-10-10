@@ -89,6 +89,17 @@ class DatabaseConnection:
         rows = self.execute_query(query)
         return [row['articleId'] for row in rows]
 
+    def get_article_ids_by_report_id(self, report_id: int) -> List[int]:
+        """Get all article IDs associated with a specific report from ArticleReportContracts."""
+        query = """
+        SELECT DISTINCT articleId
+        FROM ArticleReportContracts
+        WHERE reportId = ?
+        ORDER BY articleId
+        """
+        rows = self.execute_query(query, (report_id,))
+        return [row['articleId'] for row in rows]
+
     def insert_article_duplicate_analysis_batch(self, analysis_data: List[Dict[str, Any]]) -> int:
         """Insert multiple rows into ArticleDuplicateAnalyses table."""
         if not analysis_data:
@@ -96,17 +107,18 @@ class DatabaseConnection:
 
         query = """
         INSERT INTO ArticleDuplicateAnalyses (
-            articleIdNew, articleIdApproved, sameArticleIdFlag,
+            articleIdNew, articleIdApproved, reportId, sameArticleIdFlag,
             articleNewState, articleApprovedState, sameStateFlag,
             urlCheck, contentHash, embeddingSearch,
             createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         """
 
         params_list = [
             (
                 row['articleIdNew'],
                 row['articleIdApproved'],
+                row.get('reportId'),  # Optional field - can be None
                 row['sameArticleIdFlag'],
                 row.get('articleNewState', ''),
                 row.get('articleApprovedState', ''),

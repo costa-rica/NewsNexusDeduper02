@@ -13,15 +13,20 @@ from .csv_reader import CSVReader
 class LoadProcessor:
     """Processes the load command: populate combinations and same ID flags."""
 
-    def __init__(self):
-        """Initialize the load processor."""
+    def __init__(self, report_id: int = None):
+        """Initialize the load processor.
+
+        Args:
+            report_id: Optional report ID to load articles from ArticleReportContracts instead of CSV
+        """
         self.db = DatabaseConnection()
         self.csv_reader = CSVReader()
+        self.report_id = report_id
 
     def execute(self):
         """
         Execute the load process:
-        1. Read article IDs from CSV
+        1. Read article IDs from CSV or database (based on report_id)
         2. Get all approved article IDs
         3. Create all combinations (new article x approved article)
         4. Populate sameArticleIdFlag
@@ -29,17 +34,28 @@ class LoadProcessor:
         """
         print("Starting load process...")
 
-        # Step 1: Read article IDs from CSV
-        print("Reading article IDs from CSV...")
-        try:
-            new_article_ids = self.csv_reader.read_article_ids()
-            print(f"Found {len(new_article_ids)} article IDs in CSV")
-        except Exception as e:
-            print(f"Error reading CSV: {e}")
-            return
+        # Step 1: Get article IDs from either database (by reportId) or CSV
+        if self.report_id is not None:
+            print(f"Loading article IDs from database for reportId {self.report_id}...")
+            try:
+                with self.db:
+                    new_article_ids = self.db.get_article_ids_by_report_id(self.report_id)
+                    print(f"Found {len(new_article_ids)} article IDs for report {self.report_id}")
+            except Exception as e:
+                print(f"Error reading article IDs from database: {e}")
+                return
+        else:
+            print("Reading article IDs from CSV...")
+            try:
+                new_article_ids = self.csv_reader.read_article_ids()
+                print(f"Found {len(new_article_ids)} article IDs in CSV")
+            except Exception as e:
+                print(f"Error reading CSV: {e}")
+                return
 
         if not new_article_ids:
-            print("No article IDs found in CSV file")
+            source = f"report {self.report_id}" if self.report_id else "CSV file"
+            print(f"No article IDs found in {source}")
             return
 
         # Step 2: Get all approved article IDs
@@ -85,6 +101,7 @@ class LoadProcessor:
                             analysis_record = {
                                 'articleIdNew': new_article_id,
                                 'articleIdApproved': approved_article_id,
+                                'reportId': self.report_id,  # Optional field - None if not provided
                                 'sameArticleIdFlag': 1 if new_article_id == approved_article_id else 0,
                                 'articleNewState': '',  # Will be populated in states step
                                 'articleApprovedState': '',  # Will be populated in states step

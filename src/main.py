@@ -127,6 +127,7 @@ def main():
 
     # Load command
     load_parser = subparsers.add_parser('load', help='Populate article combinations and same ID flags')
+    load_parser.add_argument('--report-id', type=int, help='Load articles from ArticleReportContracts for this report ID instead of CSV')
 
     # Clear table command
     clear_parser = subparsers.add_parser('clear_table', help='Delete all rows from ArticleDuplicateAnalyses table')
@@ -158,7 +159,8 @@ def main():
 
     try:
         if args.command == 'load':
-            processor = LoadProcessor()
+            report_id = getattr(args, 'report_id', None)
+            processor = LoadProcessor(report_id=report_id)
             processor.execute()
         elif args.command == 'clear_table':
             clear_table(skip_confirmation=args.yes)

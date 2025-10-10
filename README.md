@@ -22,7 +22,7 @@ This Python micro service assists in the effort to identify duplicate approved a
 
 ```bash
 # Individual processing steps
-python src/main.py load           # Create article comparison pairs and ID match flags
+python src/main.py load --report-id 84  # Create article comparison pairs and ID match flags, optional --report-id flag to load articles from ArticleReportContracts for this report ID instead of CSV
 python src/main.py states         # Populate state associations and state match flags
 python src/main.py url_check      # Perform URL canonicalization and matching
 python src/main.py content_hash   # Generate content hashes for similarity detection

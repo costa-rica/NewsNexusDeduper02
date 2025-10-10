@@ -269,7 +269,7 @@ Tracks deduplication comparison outputs between a newly ingested article and an 
 | id                   | INTEGER | PRIMARY KEY, AUTO_INCREMENT | Unique analysis identifier                           |
 | articleIdNew         | INTEGER | FK, NOT NULL                | ID of the newly ingested article                     |
 | articleIdApproved    | INTEGER | FK, NOT NULL                | ID of the previously approved article                |
-| reportId             | INTEGER | FK, NOT NULL                | Reference to report                                  |
+| reportId             | INTEGER | FK, NULLABLE                | Reference to report                                  |
 | sameArticleIdFlag    | INTEGER | NOT NULL                    | 1 if IDs match; 0 otherwise                          |
 | articleNewState      | STRING  | NOT NULL                    | State associated with the new article                |
 | articleApprovedState | STRING  | NOT NULL                    | State associated with the approved article           |
