@@ -22,20 +22,23 @@ This Python micro service assists in the effort to identify duplicate approved a
 
 ```bash
 # Individual processing steps
-python src/main.py load --report-id 84  # Create article comparison pairs and ID match flags, optional --report-id flag to load articles from ArticleReportContracts for this report ID instead of CSV
-python src/main.py states         # Populate state associations and state match flags
-python src/main.py url_check      # Perform URL canonicalization and matching
-python src/main.py content_hash   # Generate content hashes for similarity detection
-python src/main.py embedding      # Calculate semantic similarity using embeddings
+python src/main.py load                    # Create article comparison pairs from CSV
+python src/main.py load --report-id 138    # Or load articles from a specific report
+python src/main.py states                  # Populate state associations and state match flags
+python src/main.py url_check               # Perform URL canonicalization and matching
+python src/main.py content_hash            # Generate content hashes for similarity detection
+python src/main.py embedding               # Calculate semantic similarity using embeddings
 
-# Pipeline commands
-python src/main.py analyze        # Run complete analysis (all steps above)
-python src/main.py analyze_fast   # Run fast analysis (skips content_hash step)
+# Pipeline commands (run all steps in sequence)
+python src/main.py analyze                 # Complete pipeline from CSV
+python src/main.py analyze --report-id 138 # Complete pipeline from report
+python src/main.py analyze_fast            # Fast pipeline (skips content_hash) from CSV
+python src/main.py analyze_fast --report-id 138  # Fast pipeline from report
 
 # Utility commands
-python src/main.py clear_table    # Clear all records from ArticleDuplicateAnalyses table
-python src/main.py clear_table -y # Clear all records from ArticleDuplicateAnalyses table without confirmation
-python src/main.py --help         # Show all available commands and options
+python src/main.py clear_table             # Clear all records (with confirmation)
+python src/main.py clear_table -y          # Clear all records (skip confirmation)
+python src/main.py --help                  # Show all available commands and options
 ```
 
 ## .env
@@ -60,7 +63,7 @@ NewsNexusDeduper02 identifies duplicate articles by comparing newly ingested art
 
 The deduplication analysis follows an 8-step workflow that populates the `ArticleDuplicateAnalyses` table:
 
-1. **Article Combination Setup** - Creates comparison pairs between new articles (from CSV input) and all approved articles
+1. **Article Combination Setup** - Creates comparison pairs between new articles (from CSV input or report) and all approved articles
 2. **ID Matching** - Flags exact ID matches between new and approved articles
 3. **State Association** - Maps articles to their geographic states using the ArticleStateContract junction table
 4. **State Comparison** - Compares state associations between article pairs
@@ -79,6 +82,7 @@ The analysis results are stored in the `ArticleDuplicateAnalyses` table:
 | id                   | INTEGER | Unique analysis identifier                           |
 | articleIdNew         | INTEGER | ID of the newly ingested article                     |
 | articleIdApproved    | INTEGER | ID of the previously approved article                |
+| reportId             | INTEGER | Optional report ID (when using --report-id)          |
 | sameArticleIdFlag    | INTEGER | 1 if IDs match; 0 otherwise                          |
 | articleNewState      | STRING  | State associated with the new article                |
 | articleApprovedState | STRING  | State associated with the approved article           |
@@ -95,7 +99,7 @@ The analysis results are stored in the `ArticleDuplicateAnalyses` table:
 - **Articles Table**: Provides URLs and article indexing
 - **ArticleApproved Table**: Provides content, titles, dates, and text for comparison analysis
 - **ArticleStateContract + States Tables**: Provides geographic state associations
-- **Input CSV**: Contains article IDs of newly ingested articles to analyze
+- **Input CSV or ArticleReportContracts Table**: Contains article IDs of newly ingested articles to analyze
 
 ### Analysis Scale
 

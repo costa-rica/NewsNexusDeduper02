@@ -27,8 +27,12 @@ from modules.embedding_processor import EmbeddingProcessor
 from modules.database import DatabaseConnection
 
 
-def run_analyze():
-    """Run complete analysis pipeline: load, states, url_check, content_hash, embedding."""
+def run_analyze(report_id=None):
+    """Run complete analysis pipeline: load, states, url_check, content_hash, embedding.
+
+    Args:
+        report_id: Optional report ID to pass to LoadProcessor
+    """
     pipeline_steps = [
         ("load", "Loading article combinations and same ID flags", LoadProcessor),
         ("states", "Processing state information and matching flags", StatesProcessor),
@@ -41,12 +45,18 @@ def run_analyze():
     print("STARTING COMPLETE ANALYSIS PIPELINE")
     print("="*60)
     print("Steps: load → states → url_check → content_hash → embedding")
+    if report_id:
+        print(f"Report ID: {report_id}")
     print("="*60)
 
     for step_name, description, processor_class in pipeline_steps:
         try:
             print(f"\n🔄 Step {pipeline_steps.index((step_name, description, processor_class)) + 1}/5: {description}...")
-            processor = processor_class()
+            # Pass report_id only to LoadProcessor
+            if step_name == "load":
+                processor = processor_class(report_id=report_id)
+            else:
+                processor = processor_class()
             processor.execute()
             print(f"✅ Step {step_name} completed successfully")
         except Exception as e:
@@ -62,8 +72,12 @@ def run_analyze():
     print("="*60)
 
 
-def run_analyze_fast():
-    """Run fast analysis pipeline: load, states, url_check, embedding (skips content_hash)."""
+def run_analyze_fast(report_id=None):
+    """Run fast analysis pipeline: load, states, url_check, embedding (skips content_hash).
+
+    Args:
+        report_id: Optional report ID to pass to LoadProcessor
+    """
     pipeline_steps = [
         ("load", "Loading article combinations and same ID flags", LoadProcessor),
         ("states", "Processing state information and matching flags", StatesProcessor),
@@ -75,12 +89,18 @@ def run_analyze_fast():
     print("STARTING FAST ANALYSIS PIPELINE")
     print("="*60)
     print("Steps: load → states → url_check → embedding (skipping content_hash)")
+    if report_id:
+        print(f"Report ID: {report_id}")
     print("="*60)
 
     for step_name, description, processor_class in pipeline_steps:
         try:
             print(f"\n🔄 Step {pipeline_steps.index((step_name, description, processor_class)) + 1}/4: {description}...")
-            processor = processor_class()
+            # Pass report_id only to LoadProcessor
+            if step_name == "load":
+                processor = processor_class(report_id=report_id)
+            else:
+                processor = processor_class()
             processor.execute()
             print(f"✅ Step {step_name} completed successfully")
         except Exception as e:
@@ -147,9 +167,11 @@ def main():
 
     # Analyze command (full pipeline)
     analyze_parser = subparsers.add_parser('analyze', help='Run complete analysis pipeline (load, states, url_check, content_hash, embedding)')
+    analyze_parser.add_argument('--report-id', type=int, help='Load articles from ArticleReportContracts for this report ID instead of CSV')
 
     # Analyze fast command (skip content_hash)
     analyze_fast_parser = subparsers.add_parser('analyze_fast', help='Run fast analysis pipeline (load, states, url_check, embedding) - skips content_hash')
+    analyze_fast_parser.add_argument('--report-id', type=int, help='Load articles from ArticleReportContracts for this report ID instead of CSV')
 
     args = parser.parse_args()
 
@@ -177,9 +199,11 @@ def main():
             processor = EmbeddingProcessor()
             processor.execute()
         elif args.command == 'analyze':
-            run_analyze()
+            report_id = getattr(args, 'report_id', None)
+            run_analyze(report_id=report_id)
         elif args.command == 'analyze_fast':
-            run_analyze_fast()
+            report_id = getattr(args, 'report_id', None)
+            run_analyze_fast(report_id=report_id)
         else:
             print(f"Unknown command: {args.command}")
             sys.exit(1)
