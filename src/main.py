@@ -49,6 +49,16 @@ def run_analyze(report_id=None):
         print(f"Report ID: {report_id}")
     print("="*60)
 
+    # Clear existing data before starting
+    print("\nClearing ArticleDuplicateAnalyses table...")
+    try:
+        with DatabaseConnection() as db:
+            rows_deleted = db.clear_all_analysis_data()
+            print(f"Deleted {rows_deleted:,} existing rows from ArticleDuplicateAnalyses table.")
+    except Exception as e:
+        print(f"Error clearing table: {e}")
+        sys.exit(1)
+
     for step_name, description, processor_class in pipeline_steps:
         try:
             print(f"\n🔄 Step {pipeline_steps.index((step_name, description, processor_class)) + 1}/5: {description}...")
@@ -92,6 +102,16 @@ def run_analyze_fast(report_id=None):
     if report_id:
         print(f"Report ID: {report_id}")
     print("="*60)
+
+    # Clear existing data before starting
+    print("\nClearing ArticleDuplicateAnalyses table...")
+    try:
+        with DatabaseConnection() as db:
+            rows_deleted = db.clear_all_analysis_data()
+            print(f"Deleted {rows_deleted:,} existing rows from ArticleDuplicateAnalyses table.")
+    except Exception as e:
+        print(f"Error clearing table: {e}")
+        sys.exit(1)
 
     for step_name, description, processor_class in pipeline_steps:
         try:
