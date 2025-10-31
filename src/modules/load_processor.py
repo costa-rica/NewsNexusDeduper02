@@ -20,7 +20,6 @@ class LoadProcessor:
             report_id: Optional report ID to load articles from ArticleReportContracts instead of CSV
         """
         self.db = DatabaseConnection()
-        self.csv_reader = CSVReader()
         self.report_id = report_id
 
     def execute(self):
@@ -47,7 +46,8 @@ class LoadProcessor:
         else:
             print("Reading article IDs from CSV...")
             try:
-                new_article_ids = self.csv_reader.read_article_ids()
+                csv_reader = CSVReader()
+                new_article_ids = csv_reader.read_article_ids()
                 print(f"Found {len(new_article_ids)} article IDs in CSV")
             except Exception as e:
                 print(f"Error reading CSV: {e}")
