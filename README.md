@@ -42,11 +42,18 @@ python src/main.py --help                  # Show all available commands and opt
 ```
 
 ## .env
-
 ```
+NAME_APP=nn-deduper02
+RUN_ENVIRONMENT=server
 PATH_TO_DATABASE=/Users/nick/Documents/_databases/NewsNexus09
 NAME_DB=newsnexus09.db
-PATH_TO_PYTHON_VENV=/Users/nick/Documents/_environments/deduper
+PATH_TO_PYTHON_VENV=/Users/nick/Documents/_environments/news_nexus
+PATH_TO_MICROSERVICE_DEDUPER=/Users/nick/Documents/NewsNexusDeduper02
+PATH_TO_MICROSERVICE_LOCATION_SCORER=/Users/nick/Documents/NewsNexusClassifierLocationScorer01
+```
+
+- optional if not using --report-id
+```
 PATH_TO_CSV=/Users/nick/Documents/_project_resources/NewsNexus09/utilities/deduper/article_ids.csv
 ```
 
