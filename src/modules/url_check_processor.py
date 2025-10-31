@@ -3,12 +3,13 @@ URL Check processor for NewsNexusDeduper02.
 Handles step 6: URL canonicalization and exact URL matching.
 """
 
+import os
 import re
 from urllib.parse import urlparse, urlunparse
 from typing import List, Dict, Any, Optional
-from tqdm import tqdm
 
 from .database import DatabaseConnection
+from .logger import get_logger
 
 
 class UrlCheckProcessor:
@@ -17,66 +18,83 @@ class UrlCheckProcessor:
     def __init__(self):
         """Initialize the URL check processor."""
         self.db = DatabaseConnection()
+        self.logger = get_logger(__name__)
+        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
     def execute(self):
         """
         Execute the URL check process:
         6. Populate urlCheck (1 for match / 0 for no match) using URL canonicalization + exact URL match
         """
-        print("Starting URL check process...")
+        self.logger.info("Starting URL check process...")
 
         try:
             with self.db:
                 # Get all analysis records that need URL checking
-                print("Getting analysis records to update...")
+                self.logger.info("Getting analysis records to update...")
                 analysis_records = self.db.get_analysis_records_for_url_update()
 
                 if not analysis_records:
-                    print("No analysis records found to update")
+                    self.logger.warning("No analysis records found to update")
                     return
 
-                print(f"Found {len(analysis_records):,} analysis records to update")
+                total = len(analysis_records)
+                self.logger.info(f"Found {total:,} analysis records to update")
 
                 # Process records in batches
                 batch_size = 1000
                 batch_updates = []
                 processed_count = 0
+                next_log_threshold = 0.1  # 10%
 
-                print("Processing URL comparisons...")
-                with tqdm(total=len(analysis_records), desc="Processing URLs", unit="records") as pbar:
-                    for record in analysis_records:
-                        # Get URLs for both articles
-                        new_article_url = self.db.get_article_url(record['articleIdNew'])
-                        approved_article_url = self.db.get_article_url(record['articleIdApproved'])
+                self.logger.info("Processing URL comparisons...")
 
-                        # Perform URL comparison
-                        url_match = self._compare_urls(new_article_url, approved_article_url)
+                # Setup progress tracking based on environment
+                if self.use_tqdm:
+                    from tqdm import tqdm
+                    progress_iter = tqdm(analysis_records, desc="Processing URLs", unit="records")
+                else:
+                    progress_iter = analysis_records
 
-                        # Create update record
-                        update_record = {
-                            'id': record['id'],
-                            'urlCheck': 1 if url_match else 0
-                        }
+                for i, record in enumerate(progress_iter, 1):
+                    # Get URLs for both articles
+                    new_article_url = self.db.get_article_url(record['articleIdNew'])
+                    approved_article_url = self.db.get_article_url(record['articleIdApproved'])
 
-                        batch_updates.append(update_record)
-                        processed_count += 1
+                    # Perform URL comparison
+                    url_match = self._compare_urls(new_article_url, approved_article_url)
 
-                        # Process batch when it reaches batch_size
-                        if len(batch_updates) >= batch_size:
-                            self._update_batch(batch_updates)
-                            pbar.update(len(batch_updates))
-                            batch_updates = []
+                    # Create update record
+                    update_record = {
+                        'id': record['id'],
+                        'urlCheck': 1 if url_match else 0
+                    }
 
-                    # Process remaining updates
-                    if batch_updates:
+                    batch_updates.append(update_record)
+                    processed_count += 1
+
+                    # Process batch when it reaches batch_size
+                    if len(batch_updates) >= batch_size:
                         self._update_batch(batch_updates)
-                        pbar.update(len(batch_updates))
+                        batch_updates = []
 
-                print(f"Successfully processed {processed_count:,} records")
+                    # Log progress for server environment
+                    if not self.use_tqdm and total > 0:
+                        ratio = i / total
+                        if ratio >= next_log_threshold or i == total:
+                            percent = int(ratio * 100)
+                            self.logger.info(f"Processing URLs: {percent}% ({i:,}/{total:,})")
+                            next_log_threshold += 0.1
+
+                # Process remaining updates
+                if batch_updates:
+                    self._update_batch(batch_updates)
+
+                self.logger.info(f"Successfully processed {processed_count:,} records")
                 self._print_summary(processed_count)
 
         except Exception as e:
-            print(f"Error during URL check processing: {e}")
+            self.logger.error(f"Error during URL check processing: {e}")
             return
 
     def _canonicalize_url(self, url: str) -> Optional[str]:
@@ -171,16 +189,16 @@ class UrlCheckProcessor:
                 # Get statistics
                 stats = self.db.get_url_check_processing_stats()
 
-                print("\n" + "="*50)
-                print("URL CHECK PROCESS SUMMARY")
-                print("="*50)
-                print(f"Records processed: {processed_count:,}")
-                print(f"URL matches found: {stats.get('url_match_count', 0):,}")
-                print(f"URL non-matches: {stats.get('url_no_match_count', 0):,}")
-                print("\nNext steps:")
-                print("- Run 'python main.py content_hash' to generate content hashes")
-                print("- Run 'python main.py embedding' to perform semantic analysis")
-                print("="*50)
+                self.logger.info("=" * 50)
+                self.logger.info("URL CHECK PROCESS SUMMARY")
+                self.logger.info("=" * 50)
+                self.logger.info(f"Records processed: {processed_count:,}")
+                self.logger.info(f"URL matches found: {stats.get('url_match_count', 0):,}")
+                self.logger.info(f"URL non-matches: {stats.get('url_no_match_count', 0):,}")
+                self.logger.info("\nNext steps:")
+                self.logger.info("- Run 'python main.py content_hash' to generate content hashes")
+                self.logger.info("- Run 'python main.py embedding' to perform semantic analysis")
+                self.logger.info("=" * 50)
         except Exception as e:
-            print(f"Could not generate detailed summary: {e}")
-            print("="*50)
+            self.logger.error(f"Could not generate detailed summary: {e}")
+            self.logger.info("=" * 50)

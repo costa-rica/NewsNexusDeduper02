@@ -4,12 +4,13 @@ Handles step 8: Perform semantic similarity analysis using embeddings.
 Uses sentence-transformers with all-MiniLM-L6-v2 model and cosine similarity.
 """
 
+import os
 import re
 import numpy as np
 from typing import List, Dict, Any, Optional
-from tqdm import tqdm
 
 from .database import DatabaseConnection
+from .logger import get_logger
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -26,6 +27,8 @@ class EmbeddingProcessor:
         self.db = DatabaseConnection()
         self.model = None
         self.embedding_cache: Dict[int, np.ndarray] = {}
+        self.logger = get_logger(__name__)
+        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
         if not SENTENCE_TRANSFORMERS_AVAILABLE:
             raise ImportError(
@@ -36,17 +39,17 @@ class EmbeddingProcessor:
     def _load_model(self):
         """Load the sentence transformer model."""
         if self.model is None:
-            print("Loading sentence-transformers/all-MiniLM-L6-v2 model...")
+            self.logger.info("Loading sentence-transformers/all-MiniLM-L6-v2 model...")
             self.model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
             self.model.max_seq_length = 256
-            print("Model loaded successfully")
+            self.logger.info("Model loaded successfully")
 
     def execute(self):
         """
         Execute the embedding process:
         8. Populate embeddingSearch (cosine similarity 0-1) using all-MiniLM-L6-v2 embeddings
         """
-        print("Starting embedding process...")
+        self.logger.info("Starting embedding process...")
 
         # Load the model first
         self._load_model()
@@ -54,60 +57,75 @@ class EmbeddingProcessor:
         try:
             with self.db:
                 # Get all analysis records that need embedding analysis
-                print("Getting analysis records to update...")
+                self.logger.info("Getting analysis records to update...")
                 analysis_records = self.db.get_analysis_records_for_embedding_update()
 
                 if not analysis_records:
-                    print("No analysis records found to update")
+                    self.logger.warning("No analysis records found to update")
                     return
 
-                print(f"Found {len(analysis_records):,} analysis records to update")
+                total = len(analysis_records)
+                self.logger.info(f"Found {total:,} analysis records to update")
 
                 # Process records in batches
                 batch_size = 100  # Smaller batches for embedding processing
                 batch_updates = []
                 processed_count = 0
+                next_log_threshold = 0.1  # 10%
 
-                print("Processing semantic similarity analysis...")
-                with tqdm(total=len(analysis_records), desc="Processing embeddings", unit="records") as pbar:
-                    for record in analysis_records:
-                        # Get content for both articles
-                        new_article_content = self.db.get_article_content(record['articleIdNew'])
-                        approved_article_content = self.db.get_article_content(record['articleIdApproved'])
+                self.logger.info("Processing semantic similarity analysis...")
 
-                        # Perform semantic similarity analysis
-                        similarity_score = self._calculate_semantic_similarity(
-                            record['articleIdNew'],
-                            new_article_content,
-                            record['articleIdApproved'],
-                            approved_article_content
-                        )
+                # Setup progress tracking based on environment
+                if self.use_tqdm:
+                    from tqdm import tqdm
+                    progress_iter = tqdm(analysis_records, desc="Processing embeddings", unit="records")
+                else:
+                    progress_iter = analysis_records
 
-                        # Create update record
-                        update_record = {
-                            'id': record['id'],
-                            'embeddingSearch': similarity_score
-                        }
+                for i, record in enumerate(progress_iter, 1):
+                    # Get content for both articles
+                    new_article_content = self.db.get_article_content(record['articleIdNew'])
+                    approved_article_content = self.db.get_article_content(record['articleIdApproved'])
 
-                        batch_updates.append(update_record)
-                        processed_count += 1
+                    # Perform semantic similarity analysis
+                    similarity_score = self._calculate_semantic_similarity(
+                        record['articleIdNew'],
+                        new_article_content,
+                        record['articleIdApproved'],
+                        approved_article_content
+                    )
 
-                        # Process batch when it reaches batch_size
-                        if len(batch_updates) >= batch_size:
-                            self._update_batch(batch_updates)
-                            pbar.update(len(batch_updates))
-                            batch_updates = []
+                    # Create update record
+                    update_record = {
+                        'id': record['id'],
+                        'embeddingSearch': similarity_score
+                    }
 
-                    # Process remaining updates
-                    if batch_updates:
+                    batch_updates.append(update_record)
+                    processed_count += 1
+
+                    # Process batch when it reaches batch_size
+                    if len(batch_updates) >= batch_size:
                         self._update_batch(batch_updates)
-                        pbar.update(len(batch_updates))
+                        batch_updates = []
 
-                print(f"Successfully processed {processed_count:,} records")
+                    # Log progress for server environment
+                    if not self.use_tqdm and total > 0:
+                        ratio = i / total
+                        if ratio >= next_log_threshold or i == total:
+                            percent = int(ratio * 100)
+                            self.logger.info(f"Processing embeddings: {percent}% ({i:,}/{total:,})")
+                            next_log_threshold += 0.1
+
+                # Process remaining updates
+                if batch_updates:
+                    self._update_batch(batch_updates)
+
+                self.logger.info(f"Successfully processed {processed_count:,} records")
                 self._print_summary(processed_count)
 
         except Exception as e:
-            print(f"Error during embedding processing: {e}")
+            self.logger.error(f"Error during embedding processing: {e}")
             return
 
     def _preprocess_text(self, text: str) -> str:
@@ -194,7 +212,7 @@ class EmbeddingProcessor:
             return max(0.0, min(1.0, cosine_similarity))
 
         except Exception as e:
-            print(f"Error calculating similarity: {e}")
+            self.logger.error(f"Error calculating similarity: {e}")
             return 0.0  # Default to no similarity on error
 
     def _update_batch(self, batch_updates: List[Dict[str, Any]]):
@@ -209,18 +227,18 @@ class EmbeddingProcessor:
                 # Get statistics
                 stats = self.db.get_embedding_processing_stats()
 
-                print("\n" + "="*50)
-                print("EMBEDDING PROCESS SUMMARY")
-                print("="*50)
-                print(f"Records processed: {processed_count:,}")
-                print(f"High similarity (>0.8): {stats.get('high_similarity_count', 0):,}")
-                print(f"Medium similarity (0.5-0.8): {stats.get('medium_similarity_count', 0):,}")
-                print(f"Low similarity (<0.5): {stats.get('low_similarity_count', 0):,}")
-                print(f"Total with similarity scores: {stats.get('processed_count', 0):,}")
-                print(f"Unique articles cached: {len(self.embedding_cache):,}")
-                print("\nAll processing steps completed!")
-                print("Use the analysis results to identify potential duplicates.")
-                print("="*50)
+                self.logger.info("=" * 50)
+                self.logger.info("EMBEDDING PROCESS SUMMARY")
+                self.logger.info("=" * 50)
+                self.logger.info(f"Records processed: {processed_count:,}")
+                self.logger.info(f"High similarity (>0.8): {stats.get('high_similarity_count', 0):,}")
+                self.logger.info(f"Medium similarity (0.5-0.8): {stats.get('medium_similarity_count', 0):,}")
+                self.logger.info(f"Low similarity (<0.5): {stats.get('low_similarity_count', 0):,}")
+                self.logger.info(f"Total with similarity scores: {stats.get('processed_count', 0):,}")
+                self.logger.info(f"Unique articles cached: {len(self.embedding_cache):,}")
+                self.logger.info("\nAll processing steps completed!")
+                self.logger.info("Use the analysis results to identify potential duplicates.")
+                self.logger.info("=" * 50)
         except Exception as e:
-            print(f"Could not generate detailed summary: {e}")
-            print("="*50)
+            self.logger.error(f"Could not generate detailed summary: {e}")
+            self.logger.info("=" * 50)

@@ -4,12 +4,13 @@ Handles step 7: Generate content hashes for similarity detection.
 Uses SimHash for near-duplicate detection and SHA-1 for exact matches.
 """
 
+import os
 import hashlib
 import re
 from typing import List, Dict, Any, Optional, Set
-from tqdm import tqdm
 
 from .database import DatabaseConnection
+from .logger import get_logger
 
 # Precompiled regexes for performance
 HTML_TAG_REGEX = re.compile(r'<[^>]+>')
@@ -24,69 +25,89 @@ class ContentHashProcessor:
         """Initialize the content hash processor."""
         self.db = DatabaseConnection()
         self.norm_cache: Dict[int, str] = {}  # Cache for normalized content by articleId
+        self.logger = get_logger(__name__)
+        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
     def execute(self):
         """
         Execute the content hash process:
         7. Populate contentHash (similarity 0-1 or 1/0 for exact) using SimHash/MinHash + SHA-1
         """
-        print("Starting content hash process...")
+        self.logger.info("Starting content hash process...")
 
         try:
             with self.db:
                 # Get total count for progress tracking
-                print("Getting total count of records to update...")
+                self.logger.info("Getting total count of records to update...")
                 count_records = self.db.get_analysis_records_for_content_hash_update()
                 total_records = len(count_records)
 
                 if total_records == 0:
-                    print("No analysis records found to update")
+                    self.logger.warning("No analysis records found to update")
                     return
 
-                print(f"Found {total_records:,} analysis records to update")
+                self.logger.info(f"Found {total_records:,} analysis records to update")
 
                 # Process records in batches using bulk query
                 batch_size = 1000  # Increased batch size for better performance
                 batch_updates = []
                 processed_count = 0
+                next_log_threshold = 0.1  # 10%
 
-                print("Processing content hash comparisons...")
-                with tqdm(total=total_records, desc="Processing content", unit="records") as pbar:
-                    while processed_count < total_records:
-                        # Get batch of records with content included
-                        records_batch = self.db.get_analysis_records_for_content_hash_update_with_contents(batch_size)
+                self.logger.info("Processing content hash comparisons...")
 
-                        if not records_batch:
-                            break
+                # Setup progress tracking based on environment
+                if self.use_tqdm:
+                    from tqdm import tqdm
+                    pbar = tqdm(total=total_records, desc="Processing content", unit="records")
 
-                        for record in records_batch:
-                            # Perform content comparison using already-loaded content
-                            content_similarity = self._compare_content_with_details(
-                                record['headlineNew'], record['textNew'],
-                                record['headlineApproved'], record['textApproved'],
-                                record['articleIdNew'], record['articleIdApproved']
-                            )
+                while processed_count < total_records:
+                    # Get batch of records with content included
+                    records_batch = self.db.get_analysis_records_for_content_hash_update_with_contents(batch_size)
 
-                            # Create update record
-                            update_record = {
-                                'id': record['id'],
-                                'contentHash': content_similarity
-                            }
+                    if not records_batch:
+                        break
 
-                            batch_updates.append(update_record)
-                            processed_count += 1
+                    for record in records_batch:
+                        # Perform content comparison using already-loaded content
+                        content_similarity = self._compare_content_with_details(
+                            record['headlineNew'], record['textNew'],
+                            record['headlineApproved'], record['textApproved'],
+                            record['articleIdNew'], record['articleIdApproved']
+                        )
 
-                        # Update batch
-                        if batch_updates:
-                            self._update_batch(batch_updates)
+                        # Create update record
+                        update_record = {
+                            'id': record['id'],
+                            'contentHash': content_similarity
+                        }
+
+                        batch_updates.append(update_record)
+                        processed_count += 1
+
+                        # Log progress for server environment
+                        if not self.use_tqdm and total_records > 0:
+                            ratio = processed_count / total_records
+                            if ratio >= next_log_threshold or processed_count == total_records:
+                                percent = int(ratio * 100)
+                                self.logger.info(f"Processing content: {percent}% ({processed_count:,}/{total_records:,})")
+                                next_log_threshold += 0.1
+
+                    # Update batch
+                    if batch_updates:
+                        self._update_batch(batch_updates)
+                        if self.use_tqdm:
                             pbar.update(len(batch_updates))
-                            batch_updates = []
+                        batch_updates = []
 
-                print(f"Successfully processed {processed_count:,} records")
+                if self.use_tqdm:
+                    pbar.close()
+
+                self.logger.info(f"Successfully processed {processed_count:,} records")
                 self._print_summary(processed_count)
 
         except Exception as e:
-            print(f"Error during content hash processing: {e}")
+            self.logger.error(f"Error during content hash processing: {e}")
             return
 
     def _normalize_text(self, text: str) -> str:
@@ -320,18 +341,18 @@ class ContentHashProcessor:
                 # Get statistics
                 stats = self.db.get_content_hash_processing_stats()
 
-                print("\n" + "="*50)
-                print("CONTENT HASH PROCESS SUMMARY")
-                print("="*50)
-                print(f"Records processed: {processed_count:,}")
-                print(f"Exact matches (1.0): {stats.get('exact_match_count', 0):,}")
-                print(f"High similarity (0.85-0.99): {stats.get('high_similarity_count', 0):,}")
-                print(f"Medium similarity (0.5-0.84): {stats.get('medium_similarity_count', 0):,}")
-                print(f"Low similarity (0.01-0.49): {stats.get('low_similarity_count', 0):,}")
-                print(f"No similarity (0.0): {stats.get('no_match_count', 0):,}")
-                print("\nNext steps:")
-                print("- Run 'python main.py embedding' to perform semantic analysis")
-                print("="*50)
+                self.logger.info("=" * 50)
+                self.logger.info("CONTENT HASH PROCESS SUMMARY")
+                self.logger.info("=" * 50)
+                self.logger.info(f"Records processed: {processed_count:,}")
+                self.logger.info(f"Exact matches (1.0): {stats.get('exact_match_count', 0):,}")
+                self.logger.info(f"High similarity (0.85-0.99): {stats.get('high_similarity_count', 0):,}")
+                self.logger.info(f"Medium similarity (0.5-0.84): {stats.get('medium_similarity_count', 0):,}")
+                self.logger.info(f"Low similarity (0.01-0.49): {stats.get('low_similarity_count', 0):,}")
+                self.logger.info(f"No similarity (0.0): {stats.get('no_match_count', 0):,}")
+                self.logger.info("\nNext steps:")
+                self.logger.info("- Run 'python main.py embedding' to perform semantic analysis")
+                self.logger.info("=" * 50)
         except Exception as e:
-            print(f"Could not generate detailed summary: {e}")
-            print("="*50)
+            self.logger.error(f"Could not generate detailed summary: {e}")
+            self.logger.info("=" * 50)

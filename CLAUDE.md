@@ -62,8 +62,14 @@ NewsNexusDeduper02/
 
 - `PATH_TO_DATABASE` - Directory containing the NewsNexus09 database
 - `NAME_DB` - Database filename (newsnexus09.db)
-- `PATH_TO_CSV` - Input CSV file with article IDs to process
+- `PATH_TO_CSV` - Input CSV file with article IDs to process (optional when using --report-id)
 - `PATH_TO_PYTHON_VENV` - Virtual environment path
+- `RUN_ENVIRONMENT` - workstation or production (controls logging output)
+- `NAME_APP` - Application name for server log prefixes
+
+### Logging
+
+Environment-aware logging: tqdm progress bars for workstation, 10% interval logs for production. See `docs/LOGGING_METHODOLOGY_V02.md` for details.
 
 ## Development Notes
 
@@ -76,7 +82,7 @@ NewsNexusDeduper02/
 
 ### Progress Tracking
 
-All operations use tqdm for terminal progress bars to track processing of large datasets.
+Operations use environment-aware progress tracking: tqdm in workstation mode, periodic log messages in production mode.
 
 ### Similarity Detection Methods
 

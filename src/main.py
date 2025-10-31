@@ -25,6 +25,7 @@ from modules.url_check_processor import UrlCheckProcessor
 from modules.content_hash_processor import ContentHashProcessor
 from modules.embedding_processor import EmbeddingProcessor
 from modules.database import DatabaseConnection
+from modules.logger import get_logger
 
 
 def run_analyze(report_id=None):
@@ -33,6 +34,8 @@ def run_analyze(report_id=None):
     Args:
         report_id: Optional report ID to pass to LoadProcessor
     """
+    logger = get_logger(__name__)
+
     pipeline_steps = [
         ("load", "Loading article combinations and same ID flags", LoadProcessor),
         ("states", "Processing state information and matching flags", StatesProcessor),
@@ -41,45 +44,45 @@ def run_analyze(report_id=None):
         ("embedding", "Performing semantic similarity analysis", EmbeddingProcessor)
     ]
 
-    print("="*60)
-    print("STARTING COMPLETE ANALYSIS PIPELINE")
-    print("="*60)
-    print("Steps: load → states → url_check → content_hash → embedding")
+    logger.info("=" * 60)
+    logger.info("STARTING COMPLETE ANALYSIS PIPELINE")
+    logger.info("=" * 60)
+    logger.info("Steps: load → states → url_check → content_hash → embedding")
     if report_id:
-        print(f"Report ID: {report_id}")
-    print("="*60)
+        logger.info(f"Report ID: {report_id}")
+    logger.info("=" * 60)
 
     # Clear existing data before starting
-    print("\nClearing ArticleDuplicateAnalyses table...")
+    logger.info("\nClearing ArticleDuplicateAnalyses table...")
     try:
         with DatabaseConnection() as db:
             rows_deleted = db.clear_all_analysis_data()
-            print(f"Deleted {rows_deleted:,} existing rows from ArticleDuplicateAnalyses table.")
+            logger.info(f"Deleted {rows_deleted:,} existing rows from ArticleDuplicateAnalyses table.")
     except Exception as e:
-        print(f"Error clearing table: {e}")
+        logger.error(f"Error clearing table: {e}")
         sys.exit(1)
 
     for step_name, description, processor_class in pipeline_steps:
         try:
-            print(f"\n🔄 Step {pipeline_steps.index((step_name, description, processor_class)) + 1}/5: {description}...")
+            logger.info(f"\nStep {pipeline_steps.index((step_name, description, processor_class)) + 1}/5: {description}...")
             # Pass report_id only to LoadProcessor
             if step_name == "load":
                 processor = processor_class(report_id=report_id)
             else:
                 processor = processor_class()
             processor.execute()
-            print(f"✅ Step {step_name} completed successfully")
+            logger.info(f"Step {step_name} completed successfully")
         except Exception as e:
-            print(f"❌ Error in step {step_name}: {e}")
-            print("Pipeline stopped due to error.")
+            logger.error(f"Error in step {step_name}: {e}")
+            logger.error("Pipeline stopped due to error.")
             sys.exit(1)
 
-    print("\n" + "="*60)
-    print("🎉 COMPLETE ANALYSIS PIPELINE FINISHED SUCCESSFULLY")
-    print("="*60)
-    print("All steps completed: load, states, url_check, content_hash, embedding")
-    print("Your duplicate analysis is ready for review!")
-    print("="*60)
+    logger.info("\n" + "=" * 60)
+    logger.info("COMPLETE ANALYSIS PIPELINE FINISHED SUCCESSFULLY")
+    logger.info("=" * 60)
+    logger.info("All steps completed: load, states, url_check, content_hash, embedding")
+    logger.info("Your duplicate analysis is ready for review!")
+    logger.info("=" * 60)
 
 
 def run_analyze_fast(report_id=None):
@@ -88,6 +91,8 @@ def run_analyze_fast(report_id=None):
     Args:
         report_id: Optional report ID to pass to LoadProcessor
     """
+    logger = get_logger(__name__)
+
     pipeline_steps = [
         ("load", "Loading article combinations and same ID flags", LoadProcessor),
         ("states", "Processing state information and matching flags", StatesProcessor),
@@ -95,65 +100,66 @@ def run_analyze_fast(report_id=None):
         ("embedding", "Performing semantic similarity analysis", EmbeddingProcessor)
     ]
 
-    print("="*60)
-    print("STARTING FAST ANALYSIS PIPELINE")
-    print("="*60)
-    print("Steps: load → states → url_check → embedding (skipping content_hash)")
+    logger.info("=" * 60)
+    logger.info("STARTING FAST ANALYSIS PIPELINE")
+    logger.info("=" * 60)
+    logger.info("Steps: load → states → url_check → embedding (skipping content_hash)")
     if report_id:
-        print(f"Report ID: {report_id}")
-    print("="*60)
+        logger.info(f"Report ID: {report_id}")
+    logger.info("=" * 60)
 
     # Clear existing data before starting
-    print("\nClearing ArticleDuplicateAnalyses table...")
+    logger.info("\nClearing ArticleDuplicateAnalyses table...")
     try:
         with DatabaseConnection() as db:
             rows_deleted = db.clear_all_analysis_data()
-            print(f"Deleted {rows_deleted:,} existing rows from ArticleDuplicateAnalyses table.")
+            logger.info(f"Deleted {rows_deleted:,} existing rows from ArticleDuplicateAnalyses table.")
     except Exception as e:
-        print(f"Error clearing table: {e}")
+        logger.error(f"Error clearing table: {e}")
         sys.exit(1)
 
     for step_name, description, processor_class in pipeline_steps:
         try:
-            print(f"\n🔄 Step {pipeline_steps.index((step_name, description, processor_class)) + 1}/4: {description}...")
+            logger.info(f"\nStep {pipeline_steps.index((step_name, description, processor_class)) + 1}/4: {description}...")
             # Pass report_id only to LoadProcessor
             if step_name == "load":
                 processor = processor_class(report_id=report_id)
             else:
                 processor = processor_class()
             processor.execute()
-            print(f"✅ Step {step_name} completed successfully")
+            logger.info(f"Step {step_name} completed successfully")
         except Exception as e:
-            print(f"❌ Error in step {step_name}: {e}")
-            print("Pipeline stopped due to error.")
+            logger.error(f"Error in step {step_name}: {e}")
+            logger.error("Pipeline stopped due to error.")
             sys.exit(1)
 
-    print("\n" + "="*60)
-    print("🎉 FAST ANALYSIS PIPELINE FINISHED SUCCESSFULLY")
-    print("="*60)
-    print("Completed steps: load, states, url_check, embedding")
-    print("Note: content_hash was skipped for faster processing")
-    print("Run 'python src/main.py content_hash' if you need content similarity analysis")
-    print("="*60)
+    logger.info("\n" + "=" * 60)
+    logger.info("FAST ANALYSIS PIPELINE FINISHED SUCCESSFULLY")
+    logger.info("=" * 60)
+    logger.info("Completed steps: load, states, url_check, embedding")
+    logger.info("Note: content_hash was skipped for faster processing")
+    logger.info("Run 'python src/main.py content_hash' if you need content similarity analysis")
+    logger.info("=" * 60)
 
 
 def clear_table(skip_confirmation=False):
     """Clear all rows from the ArticleDuplicateAnalyses table."""
-    print("Clearing ArticleDuplicateAnalyses table...")
+    logger = get_logger(__name__)
+    logger.info("Clearing ArticleDuplicateAnalyses table...")
 
     # Ask for confirmation unless -y flag is used
     if not skip_confirmation:
         response = input("This will delete ALL rows from ArticleDuplicateAnalyses table. Continue? (y/N): ")
         if response.lower() != 'y':
-            print("Operation cancelled.")
+            logger.info("Operation cancelled.")
             return
 
     try:
         with DatabaseConnection() as db:
             rows_deleted = db.clear_all_analysis_data()
-            print(f"Successfully deleted {rows_deleted:,} rows from ArticleDuplicateAnalyses table.")
+            logger.info(f"Successfully deleted {rows_deleted:,} rows from ArticleDuplicateAnalyses table.")
     except Exception as e:
-        print(f"Error clearing table: {e}")
+        logger.error(f"Error clearing table: {e}")
         sys.exit(1)
 
 
@@ -225,11 +231,13 @@ def main():
             report_id = getattr(args, 'report_id', None)
             run_analyze_fast(report_id=report_id)
         else:
-            print(f"Unknown command: {args.command}")
+            logger = get_logger(__name__)
+            logger.error(f"Unknown command: {args.command}")
             sys.exit(1)
 
     except Exception as e:
-        print(f"Error executing {args.command}: {e}")
+        logger = get_logger(__name__)
+        logger.error(f"Error executing {args.command}: {e}")
         sys.exit(1)
 
 
