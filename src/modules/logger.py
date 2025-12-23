@@ -45,4 +45,16 @@ def get_logger(name: str = None):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+    # Add file handler for production environments
+    if run_env != "workstation":
+        log_path = os.getenv("PATH_TO_LOGS", "./logs")
+        log_file = os.path.join(log_path, f"{app_name}.log")
+
+        # Create directory if it doesn't exist
+        os.makedirs(log_path, exist_ok=True)
+
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
     return logger
