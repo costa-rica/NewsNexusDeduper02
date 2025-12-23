@@ -43,7 +43,7 @@ python src/main.py --help                  # Show all available commands and opt
 
 ## .env
 ```
-NAME_APP=nn-deduper02
+NAME_APP=nn-deduper
 RUN_ENVIRONMENT=server
 PATH_TO_DATABASE=/Users/nick/Documents/_databases/NewsNexus09
 NAME_DB=newsnexus09.db
