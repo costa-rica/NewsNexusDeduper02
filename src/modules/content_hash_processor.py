@@ -50,7 +50,8 @@ class ContentHashProcessor:
                 batch_size = 1000  # Increased batch size for better performance
                 batch_updates = []
                 processed_count = 0
-                next_log_threshold = 0.1  # 10%
+                logged_1_percent = False
+                next_log_threshold = 0.1  # Start at 10% after 1%
 
                 self.logger.info("Processing content hash comparisons...")
 
@@ -78,13 +79,23 @@ class ContentHashProcessor:
                         batch_updates.append(update_record)
                         processed_count += 1
 
-                        # Log progress at 10% intervals
+                        # Log progress: 1% milestone, then 10% intervals, always 100%
                         if total_records > 0:
                             ratio = processed_count / total_records
-                            if ratio >= next_log_threshold or processed_count == total_records:
+
+                            # Log at 1% (first milestone)
+                            if not logged_1_percent and ratio >= 0.01:
+                                percent = int(ratio * 100)
+                                self.logger.info(f"Processing content: {percent}% ({processed_count:,}/{total_records:,})")
+                                logged_1_percent = True
+                            # Log at 10% intervals
+                            elif ratio >= next_log_threshold:
                                 percent = int(ratio * 100)
                                 self.logger.info(f"Processing content: {percent}% ({processed_count:,}/{total_records:,})")
                                 next_log_threshold += 0.1
+                            # Always log 100% completion
+                            elif processed_count == total_records:
+                                self.logger.info(f"Processing content: 100% ({processed_count:,}/{total_records:,})")
 
                     # Update batch
                     if batch_updates:

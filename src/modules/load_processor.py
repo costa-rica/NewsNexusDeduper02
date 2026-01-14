@@ -91,7 +91,8 @@ class LoadProcessor:
         batch_size = 1000  # Process in batches to avoid memory issues
         batch_data = []
         processed_count = 0
-        next_log_threshold = 0.1  # 10%
+        logged_1_percent = False
+        next_log_threshold = 0.1  # Start at 10% after 1%
 
         try:
             with self.db:
@@ -119,13 +120,23 @@ class LoadProcessor:
                             self._insert_batch(batch_data)
                             batch_data = []
 
-                        # Log progress at 10% intervals
+                        # Log progress: 1% milestone, then 10% intervals, always 100%
                         if total_combinations > 0:
                             ratio = processed_count / total_combinations
-                            if ratio >= next_log_threshold or processed_count == total_combinations:
+
+                            # Log at 1% (first milestone)
+                            if not logged_1_percent and ratio >= 0.01:
+                                percent = int(ratio * 100)
+                                self.logger.info(f"Processing combinations: {percent}% ({processed_count:,}/{total_combinations:,})")
+                                logged_1_percent = True
+                            # Log at 10% intervals
+                            elif ratio >= next_log_threshold:
                                 percent = int(ratio * 100)
                                 self.logger.info(f"Processing combinations: {percent}% ({processed_count:,}/{total_combinations:,})")
                                 next_log_threshold += 0.1
+                            # Always log 100% completion
+                            elif processed_count == total_combinations:
+                                self.logger.info(f"Processing combinations: 100% ({processed_count:,}/{total_combinations:,})")
 
                 # Insert remaining records
                 if batch_data:

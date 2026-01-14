@@ -43,7 +43,8 @@ class UrlCheckProcessor:
                 batch_size = 1000
                 batch_updates = []
                 processed_count = 0
-                next_log_threshold = 0.1  # 10%
+                logged_1_percent = False
+                next_log_threshold = 0.1  # Start at 10% after 1%
 
                 self.logger.info("Processing URL comparisons...")
 
@@ -69,13 +70,23 @@ class UrlCheckProcessor:
                         self._update_batch(batch_updates)
                         batch_updates = []
 
-                    # Log progress at 10% intervals
+                    # Log progress: 1% milestone, then 10% intervals, always 100%
                     if total > 0:
                         ratio = i / total
-                        if ratio >= next_log_threshold or i == total:
+
+                        # Log at 1% (first milestone)
+                        if not logged_1_percent and ratio >= 0.01:
+                            percent = int(ratio * 100)
+                            self.logger.info(f"Processing URLs: {percent}% ({i:,}/{total:,})")
+                            logged_1_percent = True
+                        # Log at 10% intervals
+                        elif ratio >= next_log_threshold:
                             percent = int(ratio * 100)
                             self.logger.info(f"Processing URLs: {percent}% ({i:,}/{total:,})")
                             next_log_threshold += 0.1
+                        # Always log 100% completion
+                        elif i == total:
+                            self.logger.info(f"Processing URLs: 100% ({i:,}/{total:,})")
 
                 # Process remaining updates
                 if batch_updates:
