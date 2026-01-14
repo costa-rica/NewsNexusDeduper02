@@ -4,7 +4,6 @@ Handles step 7: Generate content hashes for similarity detection.
 Uses SimHash for near-duplicate detection and SHA-1 for exact matches.
 """
 
-import os
 import hashlib
 import re
 from typing import List, Dict, Any, Optional, Set
@@ -26,7 +25,6 @@ class ContentHashProcessor:
         self.db = DatabaseConnection()
         self.norm_cache: Dict[int, str] = {}  # Cache for normalized content by articleId
         self.logger = get_logger(__name__)
-        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
     def execute(self):
         """
@@ -56,11 +54,6 @@ class ContentHashProcessor:
 
                 self.logger.info("Processing content hash comparisons...")
 
-                # Setup progress tracking based on environment
-                if self.use_tqdm:
-                    from tqdm import tqdm
-                    pbar = tqdm(total=total_records, desc="Processing content", unit="records")
-
                 while processed_count < total_records:
                     # Get batch of records with content included
                     records_batch = self.db.get_analysis_records_for_content_hash_update_with_contents(batch_size)
@@ -85,8 +78,8 @@ class ContentHashProcessor:
                         batch_updates.append(update_record)
                         processed_count += 1
 
-                        # Log progress for server environment
-                        if not self.use_tqdm and total_records > 0:
+                        # Log progress at 10% intervals
+                        if total_records > 0:
                             ratio = processed_count / total_records
                             if ratio >= next_log_threshold or processed_count == total_records:
                                 percent = int(ratio * 100)
@@ -96,12 +89,7 @@ class ContentHashProcessor:
                     # Update batch
                     if batch_updates:
                         self._update_batch(batch_updates)
-                        if self.use_tqdm:
-                            pbar.update(len(batch_updates))
                         batch_updates = []
-
-                if self.use_tqdm:
-                    pbar.close()
 
                 self.logger.info(f"Successfully processed {processed_count:,} records")
                 self._print_summary(processed_count)

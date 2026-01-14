@@ -3,7 +3,6 @@ Load processor for NewsNexusDeduper02.
 Handles steps 1-2: Populate article combinations and same ID flags.
 """
 
-import os
 from typing import List, Dict, Any
 
 from .database import DatabaseConnection
@@ -23,7 +22,6 @@ class LoadProcessor:
         self.db = DatabaseConnection()
         self.report_id = report_id
         self.logger = get_logger(__name__)
-        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
     def execute(self):
         """
@@ -97,11 +95,6 @@ class LoadProcessor:
 
         try:
             with self.db:
-                # Setup progress tracking based on environment
-                if self.use_tqdm:
-                    from tqdm import tqdm
-                    pbar = tqdm(total=total_combinations, desc="Processing combinations", unit="records")
-
                 for new_article_id in new_article_ids:
                     for approved_article_id in approved_article_ids:
                         # Create analysis record
@@ -124,12 +117,10 @@ class LoadProcessor:
                         # Insert batch when it reaches batch_size
                         if len(batch_data) >= batch_size:
                             self._insert_batch(batch_data)
-                            if self.use_tqdm:
-                                pbar.update(len(batch_data))
                             batch_data = []
 
-                        # Log progress for server environment
-                        if not self.use_tqdm and total_combinations > 0:
+                        # Log progress at 10% intervals
+                        if total_combinations > 0:
                             ratio = processed_count / total_combinations
                             if ratio >= next_log_threshold or processed_count == total_combinations:
                                 percent = int(ratio * 100)
@@ -139,11 +130,6 @@ class LoadProcessor:
                 # Insert remaining records
                 if batch_data:
                     self._insert_batch(batch_data)
-                    if self.use_tqdm:
-                        pbar.update(len(batch_data))
-
-                if self.use_tqdm:
-                    pbar.close()
 
                 self.logger.info(f"Successfully processed {processed_count:,} combinations")
                 self._print_summary(new_article_ids, approved_article_ids, processed_count)

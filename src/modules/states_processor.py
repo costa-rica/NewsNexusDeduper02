@@ -3,7 +3,6 @@ States processor for NewsNexusDeduper02.
 Handles steps 3-5: Populate state information and state matching flags.
 """
 
-import os
 from typing import List, Dict, Any
 
 from .database import DatabaseConnection
@@ -17,7 +16,6 @@ class StatesProcessor:
         """Initialize the states processor."""
         self.db = DatabaseConnection()
         self.logger = get_logger(__name__)
-        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
     def execute(self):
         """
@@ -49,14 +47,7 @@ class StatesProcessor:
 
                 self.logger.info("Processing state information...")
 
-                # Setup progress tracking based on environment
-                if self.use_tqdm:
-                    from tqdm import tqdm
-                    progress_iter = tqdm(analysis_records, desc="Processing states", unit="records")
-                else:
-                    progress_iter = analysis_records
-
-                for i, record in enumerate(progress_iter, 1):
+                for i, record in enumerate(analysis_records, 1):
                     # Get state for new article
                     new_article_state = self.db.get_article_state(record['articleIdNew'])
 
@@ -82,8 +73,8 @@ class StatesProcessor:
                         self._update_batch(batch_updates)
                         batch_updates = []
 
-                    # Log progress for server environment
-                    if not self.use_tqdm and total > 0:
+                    # Log progress at 10% intervals
+                    if total > 0:
                         ratio = i / total
                         if ratio >= next_log_threshold or i == total:
                             percent = int(ratio * 100)

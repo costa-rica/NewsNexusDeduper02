@@ -4,7 +4,6 @@ Handles step 8: Perform semantic similarity analysis using embeddings.
 Uses sentence-transformers with all-MiniLM-L6-v2 model and cosine similarity.
 """
 
-import os
 import re
 import numpy as np
 from typing import List, Dict, Any, Optional
@@ -28,7 +27,6 @@ class EmbeddingProcessor:
         self.model = None
         self.embedding_cache: Dict[int, np.ndarray] = {}
         self.logger = get_logger(__name__)
-        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
         if not SENTENCE_TRANSFORMERS_AVAILABLE:
             raise ImportError(
@@ -75,14 +73,7 @@ class EmbeddingProcessor:
 
                 self.logger.info("Processing semantic similarity analysis...")
 
-                # Setup progress tracking based on environment
-                if self.use_tqdm:
-                    from tqdm import tqdm
-                    progress_iter = tqdm(analysis_records, desc="Processing embeddings", unit="records")
-                else:
-                    progress_iter = analysis_records
-
-                for i, record in enumerate(progress_iter, 1):
+                for i, record in enumerate(analysis_records, 1):
                     # Get content for both articles
                     new_article_content = self.db.get_article_content(record['articleIdNew'])
                     approved_article_content = self.db.get_article_content(record['articleIdApproved'])
@@ -109,8 +100,8 @@ class EmbeddingProcessor:
                         self._update_batch(batch_updates)
                         batch_updates = []
 
-                    # Log progress for server environment
-                    if not self.use_tqdm and total > 0:
+                    # Log progress at 10% intervals
+                    if total > 0:
                         ratio = i / total
                         if ratio >= next_log_threshold or i == total:
                             percent = int(ratio * 100)

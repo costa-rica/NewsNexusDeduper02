@@ -3,7 +3,6 @@ URL Check processor for NewsNexusDeduper02.
 Handles step 6: URL canonicalization and exact URL matching.
 """
 
-import os
 import re
 from urllib.parse import urlparse, urlunparse
 from typing import List, Dict, Any, Optional
@@ -19,7 +18,6 @@ class UrlCheckProcessor:
         """Initialize the URL check processor."""
         self.db = DatabaseConnection()
         self.logger = get_logger(__name__)
-        self.use_tqdm = os.getenv("RUN_ENVIRONMENT", "production").lower() == "workstation"
 
     def execute(self):
         """
@@ -49,14 +47,7 @@ class UrlCheckProcessor:
 
                 self.logger.info("Processing URL comparisons...")
 
-                # Setup progress tracking based on environment
-                if self.use_tqdm:
-                    from tqdm import tqdm
-                    progress_iter = tqdm(analysis_records, desc="Processing URLs", unit="records")
-                else:
-                    progress_iter = analysis_records
-
-                for i, record in enumerate(progress_iter, 1):
+                for i, record in enumerate(analysis_records, 1):
                     # Get URLs for both articles
                     new_article_url = self.db.get_article_url(record['articleIdNew'])
                     approved_article_url = self.db.get_article_url(record['articleIdApproved'])
@@ -78,8 +69,8 @@ class UrlCheckProcessor:
                         self._update_batch(batch_updates)
                         batch_updates = []
 
-                    # Log progress for server environment
-                    if not self.use_tqdm and total > 0:
+                    # Log progress at 10% intervals
+                    if total > 0:
                         ratio = i / total
                         if ratio >= next_log_threshold or i == total:
                             percent = int(ratio * 100)

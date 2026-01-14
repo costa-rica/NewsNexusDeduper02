@@ -25,7 +25,7 @@ from modules.url_check_processor import UrlCheckProcessor
 from modules.content_hash_processor import ContentHashProcessor
 from modules.embedding_processor import EmbeddingProcessor
 from modules.database import DatabaseConnection
-from modules.logger import get_logger
+from modules.logger import get_logger, install_exception_handler
 
 
 def run_analyze(report_id=None):
@@ -165,6 +165,9 @@ def clear_table(skip_confirmation=False):
 
 def main():
     """Main entry point with command line argument handling."""
+    # Install exception handler first to catch any uncaught exceptions
+    install_exception_handler()
+
     parser = argparse.ArgumentParser(
         description="NewsNexusDeduper02 - Article deduplication microservice"
     )
