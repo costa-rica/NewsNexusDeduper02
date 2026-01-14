@@ -1,6 +1,6 @@
-# News Nexus 09
+# News Nexus 10
 
-- 2025-09-26
+- 2025-11-11
 
 ## Overview
 
@@ -10,10 +10,10 @@ Article collecting and analysis of news articles from various sources. The Consu
 
 ### Core Platform
 
-- Database: NewsNexusDb09 (TypeScript)
+- Database: NewsNexus10Db (TypeScript)
 - SQLite, Sequelize
-- API: NewsNexusApi09 (JavaScript)
-- Web App: NewsNexusWeb09 (JavaScript)
+- API: NewsNexus10API (JavaScript)
+- Web App: NewsNexus10Portal (JavaScript)
 
 ### Collection Tools
 
